@@ -13,13 +13,14 @@
     <div id="app">جاري التحميل...</div>
 
     <script>
+        // هذا هو الرابط الذي تأكدنا أنه يخرج بيانات
         const scriptURL = "https://script.google.com/macros/s/AKfycby19aP00fcc10njWFiUfA-7Xqv_O8wANzfQ1foFoxWMTDGTa2EfoTC2D1GdR58waYAedQ/exec";
 
         fetch(scriptURL)
             .then(res => res.json())
             .then(data => {
                 let html = '<h3>المنتجات</h3>';
-                // دمج الخضار والفواكه
+                // دمج الخضار والفواكه لعرضها
                 let all = [...data.veg, ...data.fruit];
                 all.forEach(item => {
                     html += `<div class="card"><strong>${item[0]}</strong> - ${item[2]} دج / ${item[1]}</div>`;
