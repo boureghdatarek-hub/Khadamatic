@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة خدماتي - تسوق منزلي</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; }
+        h1 { color: #2d3436; text-align: center; }
+        .section-title { background: #27ae60; color: white; padding: 10px; border-radius: 5px; margin-top: 20px; }
+        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .price { color: #e67e22; font-weight: bold; }
+        .delivery-info { font-size: 0.9em; color: #636e72; }
+        .btn-add { background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+        #cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #2d3436; color: white; padding: 15px; text-align: center; font-size: 1.2em; display: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🥦 منصة خدماتي للتسوق 🍎</h1>
+    <div id="loading">جاري تحديث الأسعار من الجدول...</div>
+    
+    <div id="products-list"></div>
+    
+    <div id="delivery-section">
+        <div class="section-title">الموصلين المتاحين حالياً</div>
+        <div id="deliverers-list"></div>
+    </div>
+</div>
+
+<div id="cart-bar" onclick="sendOrder()">
+    إجمالي الطلب: <span id="total-price">0</span> دج | أرسل الطلب الآن 🛒
+</div>
+
+<script>
+    // ضع رابط الـ API الذي ظهرت فيه النتيجة في الصورة السابقة
+    const scriptURL = "https://script.google.com/macros/s/AKfycby19aP0Ofccl0njWFiUfA-7Xqv_O8wANzfQ1foFoxWMTDGTa2EfoTC2D1GdR58wAYaEdQ/exec"; 
+    let cart = [];
+    let total = 0;
+
+    fetch(scriptURL)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                let html = '';
+
+                // عرض المنتجات (الخضروات والفواكه)
+                const allProducts = data.veg.concat(data.fruit);
+                allProducts.forEach(item => {
+                    // حسب ترتيبك: item[0] هو الاسم، item[2] هو السعر
+                    html += `<div class="card">
+                        <div>
+                            <strong>${item[0]}</strong><br>
+                            <span class="price">${item[2]} دج / ${item[1]}</span>
+                        </div>
+                        <button class="btn-add" onclick="addToCart('${item[0]}', ${item[2]})">إضافة +</button>
+                    </div>`;
+                });
+                document.getElementById('products-list').innerHTML = html;
+
+                // عرض الموصلين (من ورقتك Delivery)
+                let delHtml = '';
+                data.delivery.forEach(del => {
+                    // حسب ترتيب جدولك: del[2] هو الاسم، del[0] هي المنطقة
+                    delHtml += `<div class="card">
+                        <div>
+                            <strong>🚚 الموصل: ${del[2]}</strong><br>
+                            <span class="delivery-info">المنطقة: ${del[0]} | هاتف: ${del[1]}</span>
+                        </div>
+                    </div>`;
+                });
+                document.getElementById('deliverers-list').innerHTML = delHtml;
+            });
+
+    function addToCart(name, price) {
+        cart.push(name);
+        total += price;
+        document.getElementById('total-price').innerText = total;
+        document.getElementById('cart-bar').style.display = 'block';
+    }
+
+    function sendOrder() {
+        const orderList = cart.join(", ");
+        const message = `طلب جديد من منصة خدماتي:\n📦 المشتريات: ${orderList}\n💰 الإجمالي: ${total} دج`;
+        window.open(`https://wa.me/213xxxxxxxxx?text=${encodeURIComponent(message)}`);
+    }
+</script>
+
+</body>
+</html>
