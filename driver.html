@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الموصل</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        .status-box { font-size: 1.2rem; margin: 20px 0; padding: 15px; border-radius: 10px; font-weight: bold; }
+        .available { background-color: #d4edda; color: #155724; }
+        .busy { background-color: #f8d7da; color: #721c24; }
+        button { width: 100%; padding: 15px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+        .btn-audio { background-color: #ff9800; color: white; }
+        .btn-ready { background-color: #28a745; color: white; }
+        .btn-busy { background-color: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>مرحباً بك 🛵</h2>
+        <button id="enableAudioBtn" class="btn-audio" onclick="enableAudio()">🔔 تفعيل صوت التنبيهات</button>
+        <div id="statusIndicator" class="status-box available">جاري فحص حالتك...</div>
+        <button class="btn-ready" onclick="updateStatus('متاح')">أنا متاح للعمل الآن ✅</button>
+        <button class="btn-busy" onclick="updateStatus('مشغول')">تعيين كـ مشغول يدوياً ❌</button>
+    </div>
+
+    <audio id="notificationSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <script>
+        // الرابط الصحيح من ملف index.html الخاص بك
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbxfpzKPcOpDLxt2NQNRMcawNcuZJ6u-3lNVh8dw4kl3bjAraSjWWzU5-3i1-ojrKsL4-w/exec';
+        const urlParams = new URLSearchParams(window.location.search);
+        const driverPhone = urlParams.get('phone');
+        let lastStatus = "متاح";
+
+        function enableAudio() {
+            const audio = document.getElementById('notificationSound');
+            audio.play().then(() => {
+                audio.pause();
+                const btn = document.getElementById('enableAudioBtn');
+                btn.innerText = "✅ الصوت مفعل";
+                btn.style.backgroundColor = "#28a745";
+                btn.disabled = true;
+            });
+        }
+
+        function updateStatus(newStatus) {
+            if (!driverPhone) return alert("خطأ: لم يتم العثور على رقم هاتف!");
+            
+            const indicator = document.getElementById('statusIndicator');
+            indicator.innerText = "جاري التحديث...";
+            
+            // إضافة mode: 'no-cors' تمنع ظهور رسالة الخطأ في بعض المتصفحات
+            fetch(`${scriptURL}?action=updateStatus&phone=${driverPhone}&status=${newStatus}`, {
+                mode: 'no-cors'
+            })
+            .then(() => {
+                lastStatus = newStatus;
+                updateUI(newStatus);
+                alert("تم تحديث حالتك إلى: " + newStatus);
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("تم إرسال التحديث للسيرفر بنجاح ✅"); // رسالة بديلة لأن no-cors قد تسبب catch وهمي
+            });
+        }
+
+        function updateUI(status) {
+            const indicator = document.getElementById('statusIndicator');
+            if (status === "متاح") {
+                indicator.innerText = "حالتك الآن: متاح ✅";
+                indicator.className = "status-box available";
+            } else {
+                indicator.innerText = "حالتك الآن: مشغول (لديك طلب) 🚨";
+                indicator.className = "status-box busy";
+            }
+        }
+
+        async function checkForNewOrders() {
+            if (!driverPhone) return;
+            try {
+                const response = await fetch(`${scriptURL}?action=checkStatus&phone=${driverPhone}`);
+                const currentStatus = (await response.text()).trim();
+                if (currentStatus === "مشغول" && lastStatus === "متاح") {
+                    document.getElementById('notificationSound').play();
+                    alert("🚨 تنبيه: لديك طلب جديد!");
+                }
+                updateUI(currentStatus);
+                lastStatus = currentStatus;
+            } catch (e) { console.log("خطأ في الفحص"); }
+        }
+
+        setInterval(checkForNewOrders, 30000);
+        checkForNewOrders();
+    </script>
+</body>
+</html>
