@@ -3,65 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <title>منصة خدماتي</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; padding-bottom: 120px; }
-        .card { background: white; padding: 15px; margin: 10px auto; width: 90%; max-width: 400px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn-add { background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
-        #cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #333; color: white; padding: 20px; display: none; }
-        .input-box { width: 90%; max-width: 380px; padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #ccc; }
-    </style>
 </head>
 <body>
     <h1>🥦 منصة خدماتي 🍎</h1>
-    <input type="text" id="name" class="input-box" placeholder="اسمك الكريم">
-    <input type="text" id="address" class="input-box" placeholder="عنوان التوصيل">
-
-    <div id="products-list"></div>
-    <div id="delivery-list"></div>
-
-    <div id="cart-bar">
-        <div id="cart-items" style="margin-bottom: 10px;"></div>
-        <button onclick="sendOrder()" style="background:#27ae60; color:white; border:none; padding:10px 20px; border-radius:5px;">إرسال الطلب للموصل عبر واتساب 🛒</button>
-    </div>
+    <div id="app">جاري تحميل البيانات...</div>
 
     <script>
+        // الرابط الذي يعمل في المتصفح لديك
         const scriptURL = "https://script.google.com/macros/s/AKfycby19aP00fcc10njWFiUfA-7Xqv_O8wANzfQ1foFoxWMTDGTa2EfoTC2D1GdR58waYAedQ/exec";
-        let cart = [];
 
-        fetch(scriptURL)
-            .then(res => res.json())
-            .then(data => {
-                let pList = '<h3>المنتجات</h3>';
-                [...data.veg, ...data.fruit].forEach(item => {
-                    pList += `<div class="card">
-                        <div><strong>${item[0]}</strong> - ${item[2]} دج</div>
-                        <button class="btn-add" onclick="addToCart('${item[0]}', ${item[2]})">إضافة +</button>
-                    </div>`;
-                });
-                document.getElementById('products-list').innerHTML = pList;
-
-                let dList = '<h3>الموصلين</h3>';
-                data.delivery.forEach(del => {
-                    dList += `<div class="card">🚚 الموصل: ${del[2]} (المنطقة: ${del[0]})</div>`;
-                });
-                document.getElementById('delivery-list').innerHTML = dList;
-            })
-            .catch(err => alert("خطأ في الاتصال بالبيانات!"));
-
-        function addToCart(name, price) {
-            cart.push(name);
-            document.getElementById('cart-bar').style.display = 'block';
-            document.getElementById('cart-items').innerText = "طلباتك: " + cart.join(", ");
+        // استخدام تقنية JSONP لتجاوز حظر الـ CORS
+        const url = scriptURL + "?callback=handleResponse";
+        
+        function handleResponse(data) {
+            let html = '<h3>المنتجات</h3>';
+            let all = [...data.veg, ...data.fruit];
+            all.forEach(item => {
+                html += `<div><strong>${item[0]}</strong> - ${item[2]} دج</div>`;
+            });
+            document.getElementById('app').innerHTML = html;
         }
 
-        function sendOrder() {
-            const name = document.getElementById('name').value;
-            const addr = document.getElementById('address').value;
-            if(!name || !addr) return alert("يرجى كتابة الاسم والعنوان!");
-            
-            const msg = `🔔 طلب جديد:\nالاسم: ${name}\nالعنوان: ${addr}\nالطلبات: ${cart.join(", ")}`;
-            window.open(`https://wa.me/213661000000?text=${encodeURIComponent(msg)}`);
-        }
+        const script = document.createElement('script');
+        script.src = url;
+        document.body.appendChild(script);
     </script>
 </body>
 </html>
