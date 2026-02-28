@@ -2,10 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة خدماتي - تسوق</title>
+    <title>منصة خدماتي</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; padding-bottom: 150px; }
-        .card { background: white; padding: 15px; margin: 10px auto; width: 90%; max-width: 400px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; padding-bottom: 120px; }
+        .card { background: white; padding: 15px; margin: 10px auto; width: 90%; max-width: 400px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .btn-add { background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
         #cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #333; color: white; padding: 20px; display: none; }
         .input-box { width: 90%; max-width: 380px; padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #ccc; }
@@ -20,8 +20,8 @@
     <div id="delivery-list"></div>
 
     <div id="cart-bar">
-        <div id="cart-items"></div>
-        <button onclick="sendOrder()" style="background:#27ae60; color:white; border:none; padding:10px 20px; border-radius:5px; margin-top:10px;">إرسال الطلب عبر واتساب 🛒</button>
+        <div id="cart-items" style="margin-bottom: 10px;"></div>
+        <button onclick="sendOrder()" style="background:#27ae60; color:white; border:none; padding:10px 20px; border-radius:5px;">إرسال الطلب للموصل عبر واتساب 🛒</button>
     </div>
 
     <script>
@@ -34,7 +34,7 @@
                 let pList = '<h3>المنتجات</h3>';
                 [...data.veg, ...data.fruit].forEach(item => {
                     pList += `<div class="card">
-                        <div><strong>${item[0]}</strong><br>${item[2]} دج</div>
+                        <div><strong>${item[0]}</strong> - ${item[2]} دج</div>
                         <button class="btn-add" onclick="addToCart('${item[0]}', ${item[2]})">إضافة +</button>
                     </div>`;
                 });
@@ -42,15 +42,16 @@
 
                 let dList = '<h3>الموصلين</h3>';
                 data.delivery.forEach(del => {
-                    dList += `<div class="card">🚚 ${del[2]} - المنطقة: ${del[0]}</div>`;
+                    dList += `<div class="card">🚚 الموصل: ${del[2]} (المنطقة: ${del[0]})</div>`;
                 });
                 document.getElementById('delivery-list').innerHTML = dList;
-            });
+            })
+            .catch(err => alert("خطأ في الاتصال بالبيانات!"));
 
         function addToCart(name, price) {
-            cart.push({name, price});
+            cart.push(name);
             document.getElementById('cart-bar').style.display = 'block';
-            document.getElementById('cart-items').innerText = "الطلبات: " + cart.map(i => i.name).join(", ");
+            document.getElementById('cart-items').innerText = "طلباتك: " + cart.join(", ");
         }
 
         function sendOrder() {
@@ -58,7 +59,7 @@
             const addr = document.getElementById('address').value;
             if(!name || !addr) return alert("يرجى كتابة الاسم والعنوان!");
             
-            const msg = `طلب جديد من: ${name}\nالعنوان: ${addr}\nالطلبات: ${cart.map(i => i.name).join(", ")}`;
+            const msg = `🔔 طلب جديد:\nالاسم: ${name}\nالعنوان: ${addr}\nالطلبات: ${cart.join(", ")}`;
             window.open(`https://wa.me/213661000000?text=${encodeURIComponent(msg)}`);
         }
     </script>
