@@ -2,58 +2,65 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة خدماتي</title>
+    <title>منصة خدماتي - تسوق</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
-        .container { max-width: 500px; margin: auto; }
-        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-right: 5px solid #27ae60; text-align: right; }
-        h1 { color: #2d3436; }
-        .price { color: #e67e22; font-weight: bold; }
-        .delivery-tag { background: #2ecc71; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; padding-bottom: 150px; }
+        .card { background: white; padding: 15px; margin: 10px auto; width: 90%; max-width: 400px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .btn-add { background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        #cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #333; color: white; padding: 20px; display: none; }
+        .input-box { width: 90%; max-width: 380px; padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
+    <h1>🥦 منصة خدماتي 🍎</h1>
+    <input type="text" id="name" class="input-box" placeholder="اسمك الكريم">
+    <input type="text" id="address" class="input-box" placeholder="عنوان التوصيل">
 
-<div class="container">
-    <h1>🥦 منصة خدماتي للتسوق 🍎</h1>
-    <div id="app">جاري تحميل المنتجات...</div>
-</div>
+    <div id="products-list"></div>
+    <div id="delivery-list"></div>
 
-<script>
-    // الرابط الذي فتحته ونجح في المتصفح
-    const scriptURL = "https://script.google.com/macros/s/AKfycby19aP00fcc10njWFiUfA-7Xqv_O8wANzfQ1foFoxWMTDGTa2EfoTC2D1GdR58waYAedQ/exec";
+    <div id="cart-bar">
+        <div id="cart-items"></div>
+        <button onclick="sendOrder()" style="background:#27ae60; color:white; border:none; padding:10px 20px; border-radius:5px; margin-top:10px;">إرسال الطلب عبر واتساب 🛒</button>
+    </div>
 
-    fetch(scriptURL)
-        .then(res => res.json())
-        .then(data => {
-            let html = '<h3>🍅 الخضروات والفواكه</h3>';
+    <script>
+        const scriptURL = "https://script.google.com/macros/s/AKfycby19aP00fcc10njWFiUfA-7Xqv_O8wANzfQ1foFoxWMTDGTa2EfoTC2D1GdR58waYAedQ/exec";
+        let cart = [];
+
+        fetch(scriptURL)
+            .then(res => res.json())
+            .then(data => {
+                let pList = '<h3>المنتجات</h3>';
+                [...data.veg, ...data.fruit].forEach(item => {
+                    pList += `<div class="card">
+                        <div><strong>${item[0]}</strong><br>${item[2]} دج</div>
+                        <button class="btn-add" onclick="addToCart('${item[0]}', ${item[2]})">إضافة +</button>
+                    </div>`;
+                });
+                document.getElementById('products-list').innerHTML = pList;
+
+                let dList = '<h3>الموصلين</h3>';
+                data.delivery.forEach(del => {
+                    dList += `<div class="card">🚚 ${del[2]} - المنطقة: ${del[0]}</div>`;
+                });
+                document.getElementById('delivery-list').innerHTML = dList;
+            });
+
+        function addToCart(name, price) {
+            cart.push({name, price});
+            document.getElementById('cart-bar').style.display = 'block';
+            document.getElementById('cart-items').innerText = "الطلبات: " + cart.map(i => i.name).join(", ");
+        }
+
+        function sendOrder() {
+            const name = document.getElementById('name').value;
+            const addr = document.getElementById('address').value;
+            if(!name || !addr) return alert("يرجى كتابة الاسم والعنوان!");
             
-            // دمج وعرض المنتجات
-            const allProducts = data.veg.concat(data.fruit);
-            allProducts.forEach(item => {
-                html += `
-                <div class="card">
-                    <strong>${item[0]}</strong> <br>
-                    <span class="price">${item[2]} دج / ${item[1]}</span>
-                </div>`;
-            });
-
-            html += '<h3>🚚 الموصلين المتاحين</h3>';
-            data.delivery.forEach(del => {
-                html += `
-                <div class="card" style="border-right-color: #3498db;">
-                    <strong>👤 الموصل: ${del[2]}</strong> <span class="delivery-tag">متاح</span> <br>
-                    <small>المنطقة: ${del[0]} | هاتف: ${del[1]}</small>
-                </div>`;
-            });
-
-            document.getElementById('app').innerHTML = html;
-        })
-        .catch(err => {
-            document.getElementById('app').innerHTML = "تعذر جلب البيانات. تأكد من تحديث Deployment في Apps Script.";
-            console.error(err);
-        });
-</script>
-
+            const msg = `طلب جديد من: ${name}\nالعنوان: ${addr}\nالطلبات: ${cart.map(i => i.name).join(", ")}`;
+            window.open(`https://wa.me/213661000000?text=${encodeURIComponent(msg)}`);
+        }
+    </script>
 </body>
 </html>
