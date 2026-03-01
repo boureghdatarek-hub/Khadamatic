@@ -1,96 +1,100 @@
 import streamlit as st
-import json, os, pandas as pd
+import pandas as pd
+import urllib.parse
 
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="SM KhadamaTic", layout="wide")
 
-DB_FILE = "sm_database.json"
+# 2. تهيئة الذاكرة (لحل مشكلة الاختفاء)
+if 'products' not in st.session_state:
+    st.session_state.products = []
+if 'drivers' not in st.session_state:
+    st.session_state.drivers = []
+if 'sellers' not in st.session_state:
+    st.session_state.sellers = []
+if 'orders' not in st.session_state:
+    st.session_state.orders = []
+if 'phone' not in st.session_state:
+    st.session_state.phone = "213770000000"
 
-def load_data():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except: pass
-    return {"products": [], "drivers": [], "sellers": [], "orders": [], "settings": {"phone": "213770000000"}}
-
-def save_data(data):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-if 'db' not in st.session_state:
-    st.session_state.db = load_data()
-
+# 3. التحقق من وضع الإدارة
 is_admin = st.query_params.get("view") == "tarek_king"
 
 if is_admin:
-    st.title("⚙️ لوحة التحكم الملكية")
+    st.markdown("<h1 style='text-align:center;'>⚙️ لوحة التحكم الملكية</h1>", unsafe_allow_html=True)
     t1, t2, t3, t4, t5 = st.tabs(["📦 المنتجات", "🚚 الموصلين", "👥 البائعين", "📊 السجلات", "🔧 الإعدادات"])
-    
-    # 1. إدارة المنتجات
+
     with t1:
-        st.subheader("إضافة منتج جديد")
-        n = st.text_input("اسم المنتج")
-        p = st.number_input("السعر", 0)
-        if st.button("حفظ المنتج"):
-            st.session_state.db['products'].append({"name": n, "price": p})
-            save_data(st.session_state.db)
-            st.rerun()
+        st.subheader("إضافة منتج")
+        with st.form("add_p", clear_on_submit=True):
+            name = st.text_input("اسم المنتج")
+            price = st.number_input("السعر (دج)", 0)
+            if st.form_submit_button("حفظ ✅"):
+                if name:
+                    st.session_state.products.append({"الاسم": name, "السعر": price})
+                    st.success(f"تمت إضافة {name}")
+        
         st.divider()
-        for i, item in enumerate(st.session_state.db['products']):
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"🏷️ {item['name']} - {item['price']} دج")
-            if c2.button("حذف", key=f"del_p_{i}"):
-                st.session_state.db['products'].pop(i)
-                save_data(st.session_state.db)
+        st.subheader("قائمة المنتجات")
+        for i, p in enumerate(st.session_state.products):
+            col1, col2 = st.columns([4, 1])
+            col1.write(f"🏷️ {p['الاسم']} - {p['السعر']} دج")
+            if col2.button("حذف", key=f"del_p_{i}"):
+                st.session_state.products.pop(i)
                 st.rerun()
 
-    # 2. إدارة الموصلين
     with t2:
-        st.subheader("إضافة موصل")
-        dn = st.text_input("اسم الموصل")
-        dp = st.text_input("رقم الهاتف")
-        if st.button("حفظ الموصل"):
-            st.session_state.db['drivers'].append({"name": dn, "phone": dp})
-            save_data(st.session_state.db)
-            st.rerun()
-        st.divider()
-        for i, item in enumerate(st.session_state.db['drivers']):
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"🚚 {item['name']} | الهاتف: {item.get('phone', '')}")
-            if c2.button("حذف", key=f"del_d_{i}"):
-                st.session_state.db['drivers'].pop(i)
-                save_data(st.session_state.db)
+        st.subheader("إدارة الموصلين")
+        with st.form("add_d", clear_on_submit=True):
+            d_name = st.text_input("اسم الموصل")
+            d_phone = st.text_input("رقم الهاتف")
+            if st.form_submit_button("إضافة 🚚"):
+                st.session_state.drivers.append({"الاسم": d_name, "الهاتف": d_phone})
+        
+        for i, d in enumerate(st.session_state.drivers):
+            col1, col2 = st.columns([4, 1])
+            col1.write(f"🚚 {d['الاسم']} - {d['الهاتف']}")
+            if col2.button("حذف", key=f"del_d_{i}"):
+                st.session_state.drivers.pop(i)
                 st.rerun()
 
-    # 3. إدارة البائعين
     with t3:
-        st.subheader("إضافة بائع")
-        sn = st.text_input("اسم البائع")
-        if st.button("حفظ البائع"):
-            st.session_state.db['sellers'].append({"name": sn})
-            save_data(st.session_state.db)
-            st.rerun()
-        st.divider()
-        for i, item in enumerate(st.session_state.db['sellers']):
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"👤 {item['name']}")
-            if c2.button("حذف", key=f"del_s_{i}"):
-                st.session_state.db['sellers'].pop(i)
-                save_data(st.session_state.db)
+        st.subheader("إدارة البائعين")
+        with st.form("add_s", clear_on_submit=True):
+            s_name = st.text_input("اسم البائع")
+            if st.form_submit_button("إضافة 👤"):
+                st.session_state.sellers.append({"الاسم": s_name})
+        
+        for i, s in enumerate(st.session_state.sellers):
+            col1, col2 = st.columns([4, 1])
+            col1.write(f"👤 {s['الاسم']}")
+            if col2.button("حذف", key=f"del_s_{i}"):
+                st.session_state.sellers.pop(i)
                 st.rerun()
 
     with t4:
         st.subheader("📊 السجلات")
-        if st.session_state.db['orders']:
-            st.dataframe(pd.DataFrame(st.session_state.db['orders']))
-            
+        if st.session_state.products:
+            st.write("ملخص المنتجات:")
+            st.table(pd.DataFrame(st.session_state.products))
+        else: st.info("لا توجد بيانات.")
+
     with t5:
         st.subheader("🔧 الإعدادات")
-        phone = st.text_input("رقم الواتساب:", value=st.session_state.db['settings']['phone'])
-        if st.button("حفظ الإعدادات"):
-            st.session_state.db['settings']['phone'] = phone
-            save_data(st.session_state.db)
-            st.success("تم الحفظ!")
+        st.session_state.phone = st.text_input("رقم الواتساب الحالي:", value=st.session_state.phone)
+        st.success("يتم حفظ الرقم تلقائياً")
+
 else:
-    st.title("SM KhadamaTic")
-    st.write("مرحباً بك في المتجر، هذا هو المكان الذي سيتم عرض المنتجات فيه للزبائن.")
+    # واجهة الزبائن
+    st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KhadamaTic</h1>", unsafe_allow_html=True)
+    
+    if not st.session_state.products:
+        st.warning("عذراً سيدي، المتجر فارغ حالياً. يرجى إضافة منتجات من لوحة الإدارة.")
+    else:
+        for p in st.session_state.products:
+            with st.container():
+                st.markdown(f"### {p['الاسم']}")
+                st.write(f"السعر: {p['السعر']} دج")
+                msg = urllib.parse.quote(f"أريد طلب منتج: {p['الاسم']}")
+                st.markdown(f'<a href="https://wa.me/{st.session_state.phone}?text={msg}" target="_blank" style="background-color:green; color:white; padding:10px; border-radius:5px; text-decoration:none;">اطلب الآن عبر واتساب</a>', unsafe_allow_html=True)
+                st.divider()
