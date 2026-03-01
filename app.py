@@ -6,10 +6,10 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 
-# 1. إعدادات الصفحة الاحترافية (SM KhadamaTic)
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="SM KhadamaTic", layout="wide")
 
-# 2. التنسيق (Style) - محاكاة METRO مريح للعين ومتوافق مع الهاتف
+# 2. التنسيق الاحترافي (مريح للعين ومتوافق مع الهاتف)
 st.markdown("""
 <style>
     .stApp { background-color: #F8F9FA; color: #333; }
@@ -19,27 +19,24 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center;
         border: 1px solid #EEE; margin-bottom: 15px;
     }
-    .price-text { color: #006341; font-weight: bold; font-size: 1.2em; }
     div.stButton > button { 
         background-color: #006341 !important; color: white !important; 
         border-radius: 8px; width: 100%; font-weight: bold; height: 45px;
     }
-    /* إخفاء القائمة الجانبية تماماً عن الزبائن */
+    /* إخفاء القائمة الجانبية تماماً عن الناس */
     [data-testid="stSidebar"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
 # 3. إدارة البيانات
 DB_FILE = "khadamatict_db.json"
-ADMIN_KEY = "tarek_admin" # الكلمة السرية للرابط
+ADMIN_KEY = "tarek_king" # الكلمة السرية للرابط
 
 def load_data():
     base = {"products": [], "categories": ["خضروات", "فواكه", "عروض"], 
             "delivery_fees": {"باتنة": 200, "الجزائر": 500}, "orders": []}
     if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f: return json.load(f)
-        except: return base
+        with open(DB_FILE, "r", encoding="utf-8") as f: return json.load(f)
     return base
 
 def save_data(data):
@@ -49,111 +46,83 @@ def save_data(data):
 if 'db' not in st.session_state: st.session_state.db = load_data()
 if 'cart' not in st.session_state: st.session_state.cart = {}
 
-# التحقق من "رابط الإدارة السري"
-query_params = st.query_params
-is_admin = query_params.get("view") == ADMIN_KEY
+# التحقق من الرابط السري (أضف ?view=tarek_king للرابط)
+is_admin = st.query_params.get("view") == ADMIN_KEY
 
-# --- واجهة المتجر (للزوار) ---
+# --- واجهة المتجر ---
 if not is_admin:
     st.markdown("<div class='main-title'>SM KhadamaTic</div>", unsafe_allow_html=True)
     
     col_main, col_cart = st.columns([2, 1])
     
     with col_main:
-        selected_cat = st.selectbox("اختر القسم:", ["الكل"] + st.session_state.db['categories'])
+        selected_cat = st.selectbox("الأقسام:", ["الكل"] + st.session_state.db['categories'])
         prods = [p for p in st.session_state.db['products'] if selected_cat == "الكل" or p.get('category') == selected_cat]
         
-        # شبكة المنتجات (تلقائية التوزيع للموبايل والكمبيوتر)
-        rows = [prods[i:i + 2] for i in range(0, len(prods), 2)]
-        for row in rows:
-            cols = st.columns(2)
-            for idx, p in enumerate(row):
-                with cols[idx]:
-                    st.markdown(f"""
-                    <div class='product-card'>
-                        <h4>{p['name']}</h4>
-                        <p class='price-text'>{p['price']} دج</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    if st.button(f"أضف للسلة 🛒", key=f"add_{p['name']}"):
-                        st.session_state.cart[p['name']] = st.session_state.cart.get(p['name'], 0) + 1
-                        st.rerun()
+        cols = st.columns(2) # متوافق مع الهاتف
+        for i, p in enumerate(prods):
+            with cols[i % 2]:
+                st.markdown(f"<div class='product-card'><h4>{p['name']}</h4><p style='color:#006341;'><b>{p['price']} دج</b></p></div>", unsafe_allow_html=True)
+                if st.button(f"أضف للسلة 🛒", key=f"btn_{p['name']}"):
+                    st.session_state.cart[p['name']] = st.session_state.cart.get(p['name'], 0) + 1
+                    st.rerun()
 
     with col_cart:
-        st.subheader("🛒 سلة الطلبات")
-        total_items = 0
-        order_details = ""
+        st.subheader("🛒 طلباتك")
+        total = 0
+        details = ""
         for n, q in list(st.session_state.cart.items()):
             if q > 0:
                 p_info = next(x for x in st.session_state.db['products'] if x['name'] == n)
-                total_items += q * p_info['price']
+                total += q * p_info['price']
                 st.write(f"✅ {n} (x{q})")
-                order_details += f"- {n} (x{q}) = {q*p_info['price']} دج\n"
+                details += f"- {n} (x{q})\n"
                 if st.button(f"حذف {n}", key=f"del_{n}"):
                     st.session_state.cart[n] = 0
                     st.rerun()
         
-        if total_items > 0:
-            st.divider()
-            reg = st.selectbox("منطقة التوصيل:", list(st.session_state.db['delivery_fees'].keys()))
+        if total > 0:
+            reg = st.selectbox("المنطقة:", list(st.session_state.db['delivery_fees'].keys()))
             fee = st.session_state.db['delivery_fees'][reg]
-            grand_total = total_items + fee
-            st.markdown(f"### الإجمالي: {grand_total} دج")
+            st.markdown(f"### الإجمالي: {total + fee} دج")
             
-            # معلومات الزبون
-            u_name = st.text_input("الاسم الكامل:")
-            u_phone = st.text_input("رقم الهاتف:")
-            u_address = st.text_area("العنوان بالتفصيل:")
+            # معلومات الزبون الإجبارية
+            name = st.text_input("الاسم:")
+            phone = st.text_input("الهاتف:")
+            addr = st.text_area("العنوان:")
             
-            if st.button("إرسال الطلب عبر واتساب 📲"):
-                if u_name and u_phone and u_address:
-                    # حفظ في السجل
-                    new_order = {
-                        "التاريخ": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "الزبون": u_name, "الهاتف": u_phone, "العنوان": u_address,
-                        "المنطقة": reg, "المجموع": grand_total, "الطلبات": order_details
-                    }
-                    st.session_state.db['orders'].append(new_order)
+            if st.button("إرسال عبر واتساب 📲"):
+                if name and phone and addr:
+                    st.session_state.db['orders'].append({"التاريخ": datetime.now().strftime("%Y-%m-%d"), "الزبون": name, "المجموع": total+fee, "الطلبات": details})
                     save_data(st.session_state.db)
                     
-                    # رابط الواتساب
-                    full_msg = f"📢 *طلب جديد من SM KhadamaTic*\n\n👤 الزبون: {u_name}\n📞 الهاتف: {u_phone}\n📍 العنوان: {u_address}\n🚚 المنطقة: {reg}\n\n📦 الطلبات:\n{order_details}\n💰 *الإجمالي النهائي: {grand_total} دج*"
-                    wa_url = f"https://wa.me/213770000000?text={urllib.parse.quote(full_msg)}"
-                    st.markdown(f'<meta http-equiv="refresh" content="0;url={wa_url}">', unsafe_allow_html=True)
-                    st.success("جاري تحويلك للواتساب...")
+                    msg = f"طلب جديد: {name}\nالهاتف: {phone}\nالعنوان: {addr}\nالطلبات:\n{details}الإجمالي: {total+fee} دج"
+                    url = f"https://wa.me/213770000000?text={urllib.parse.quote(msg)}"
+                    st.markdown(f'<a href="{url}" target="_blank" style="text-decoration:none;"><button style="width:100%; background-color:#25D366; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer;">تأكيد وفتح واتساب ✅</button></a>', unsafe_allow_html=True)
                 else:
-                    st.warning("مولاي، يرجى ملء كل المعلومات أولاً!")
+                    st.error("مولاي، املأ المعلومات!")
 
-# --- لوحة التحكم (مخفية - تظهر فقط بالرابط السري) ---
+# --- لوحة التحكم (للملك فقط) ---
 else:
-    st.title("🛠 لوحة تحكم مولاي طارق")
-    tab1, tab2, tab3 = st.tabs(["📦 المنتجات", "📍 التوصيل", "📊 سجل المبيعات"])
+    st.title("👑 لوحة تحكم مولاي طارق")
+    t1, t2, t3 = st.tabs(["📦 المنتجات", "🚚 التوصيل", "📊 السجلات"])
     
-    with tab1:
-        with st.form("p_form"):
-            n = st.text_input("اسم المنتج")
-            p = st.number_input("السعر", min_value=0)
+    with t1:
+        with st.form("p_f"):
+            n = st.text_input("الاسم")
+            p = st.number_input("السعر")
             c = st.selectbox("القسم", st.session_state.db['categories'])
             if st.form_submit_button("إضافة"):
                 st.session_state.db['products'].append({"name": n, "price": p, "category": c})
                 save_data(st.session_state.db)
                 st.rerun()
-
-    with tab3:
+    
+    with t3:
         if st.session_state.db['orders']:
             df = pd.DataFrame(st.session_state.db['orders'])
             st.dataframe(df)
-            
-            # زر التصدير لإكسل (Export to Excel)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name='Orders')
-            
-            st.download_button(
-                label="📥 تحميل السجل كملف Excel",
-                data=output.getvalue(),
-                file_name=f"orders_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.info("لا توجد طلبات في السجل بعد.")
+            # تصدير إكسل
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False)
+            st.download_button("📥 تحميل سجل إكسل", data=buffer.getvalue(), file_name="orders.xlsx")
