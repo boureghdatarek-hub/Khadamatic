@@ -27,7 +27,7 @@ def load_data():
     return {
         "products": [{"name": "منتج تجريبي 1", "price": 500, "category": "خضروات", "image": ""}],
         "categories": ["خضروات", "فواكه", "عروض"], "drivers": [], "sellers": [], "orders": [],
-        "settings": {"phone": "213770000000"}
+        "settings": {"phone": "213665577427"}
     }
 
 def save_data(data):
@@ -107,3 +107,4 @@ else:
         if st.button("حفظ"):
             st.session_state.db['settings'] = {"phone": new}
             save_data(st.session_state.db); st.success("تم الحفظ!")
+
