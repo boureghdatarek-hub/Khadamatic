@@ -4,53 +4,41 @@ import os
 import urllib.parse
 import pandas as pd
 from datetime import datetime
+from io import BytesIO
 
-# 1. إعدادات الصفحة والوضع الليلي (Dark Theme)
-st.set_page_config(page_title="KhadamaTic Pro", layout="wide", initial_sidebar_state="collapsed")
+# 1. إعدادات الصفحة الاحترافية (SM KhadamaTic)
+st.set_page_config(page_title="SM KhadamaTic", layout="wide")
 
-# تنسيق CSS لفرض الوضع الليلي وتجميل الأزرار والكروت
+# 2. التنسيق (Style) - محاكاة METRO مريح للعين ومتوافق مع الهاتف
 st.markdown("""
 <style>
-    .stApp { background-color: #0E1117; color: #FFFFFF; }
-    h1, h2, h3 { color: #4CAF50 !important; text-align: center; font-family: 'Arial'; }
+    .stApp { background-color: #F8F9FA; color: #333; }
+    .main-title { color: #006341; text-align: center; font-size: clamp(24px, 5vw, 40px); font-weight: bold; margin: 20px 0; }
     .product-card {
-        background-color: #1C2128;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #333;
-        text-align: center;
-        margin-bottom: 15px;
-        transition: 0.3s;
+        background-color: white; padding: 15px; border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center;
+        border: 1px solid #EEE; margin-bottom: 15px;
     }
-    .product-card:hover { border-color: #4CAF50; transform: translateY(-5px); }
-    div.stButton > button {
-        background-color: #2E7D32 !important;
-        color: white !important;
-        border-radius: 10px !important;
-        font-weight: bold;
-        width: 100%;
-        border: none;
-        padding: 10px;
+    .price-text { color: #006341; font-weight: bold; font-size: 1.2em; }
+    div.stButton > button { 
+        background-color: #006341 !important; color: white !important; 
+        border-radius: 8px; width: 100%; font-weight: bold; height: 45px;
     }
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; justify-content: center; }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: #1C2128; border-radius: 5px; padding: 10px 20px; color: white;
-    }
+    /* إخفاء القائمة الجانبية تماماً عن الزبائن */
+    [data-testid="stSidebar"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. إدارة البيانات (قاعدة بيانات JSON)
+# 3. إدارة البيانات
 DB_FILE = "khadamatict_db.json"
+ADMIN_KEY = "tarek_admin" # الكلمة السرية للرابط
 
 def load_data():
-    base = {"products": [], "categories": ["خضروات", "فواكه", "عروض"], "orders": []}
+    base = {"products": [], "categories": ["خضروات", "فواكه", "عروض"], 
+            "delivery_fees": {"باتنة": 200, "الجزائر": 500}, "orders": []}
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for key in base:
-                    if key not in data: data[key] = base[key]
-                return data
+            with open(DB_FILE, "r", encoding="utf-8") as f: return json.load(f)
         except: return base
     return base
 
@@ -61,126 +49,111 @@ def save_data(data):
 if 'db' not in st.session_state: st.session_state.db = load_data()
 if 'cart' not in st.session_state: st.session_state.cart = {}
 
-# --- كلمة السر الخاصة بك ---
-ADMIN_PASSWORD = "tarek_khadamatict"
+# التحقق من "رابط الإدارة السري"
+query_params = st.query_params
+is_admin = query_params.get("view") == ADMIN_KEY
 
-# 3. دالة الحماية (Login)
-def check_auth(area_id):
-    key = f"is_authed_{area_id}"
-    if key not in st.session_state: st.session_state[key] = False
+# --- واجهة المتجر (للزوار) ---
+if not is_admin:
+    st.markdown("<div class='main-title'>SM KhadamaTic</div>", unsafe_allow_html=True)
     
-    if not st.session_state[key]:
-        st.markdown(f"### 🔒 منطقة محمية ({area_id})")
-        pwd = st.text_input("أدخل كلمة السر:", type="password", key=f"in_{area_id}")
-        if st.button("دخول", key=f"btn_{area_id}"):
-            if pwd == ADMIN_PASSWORD:
-                st.session_state[key] = True
-                st.rerun()
-            else: st.error("كلمة السر خاطئة!")
-        return False
-    return True
-
-# --- واجهة التطبيق ---
-st.markdown("<h1>🌿 KhadamaTic | خَدَماتِك 🌿</h1>", unsafe_allow_html=True)
-t1, t2, t3 = st.tabs(["🛒 المتجر الرئيسي", "📊 سجل الطلبات", "⚙️ لوحة التحكم"])
-
-# --- التبويب 1: المتجر (متاح للجميع) ---
-with t1:
-    col_products, col_cart = st.columns([2, 1])
+    col_main, col_cart = st.columns([2, 1])
     
-    with col_products:
-        st.subheader("المنتجات")
-        if not st.session_state.db['products']:
-            st.info("لا توجد منتجات حالياً. أضف بعضها من لوحة التحكم.")
+    with col_main:
+        selected_cat = st.selectbox("اختر القسم:", ["الكل"] + st.session_state.db['categories'])
+        prods = [p for p in st.session_state.db['products'] if selected_cat == "الكل" or p.get('category') == selected_cat]
         
-        cols = st.columns(2)
-        for i, p in enumerate(st.session_state.db['products']):
-            with cols[i % 2]:
-                st.markdown(f"""
-                <div class="product-card">
-                    <h3>{p['name']}</h3>
-                    <p style="font-size: 20px; color: #4CAF50;">{p['price']} دج</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"إضافة للسلة 🛒", key=f"add_{i}"):
-                    st.session_state.cart[p['name']] = st.session_state.cart.get(p['name'], 0) + 1
-                    st.rerun()
+        # شبكة المنتجات (تلقائية التوزيع للموبايل والكمبيوتر)
+        rows = [prods[i:i + 2] for i in range(0, len(prods), 2)]
+        for row in rows:
+            cols = st.columns(2)
+            for idx, p in enumerate(row):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div class='product-card'>
+                        <h4>{p['name']}</h4>
+                        <p class='price-text'>{p['price']} دج</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button(f"أضف للسلة 🛒", key=f"add_{p['name']}"):
+                        st.session_state.cart[p['name']] = st.session_state.cart.get(p['name'], 0) + 1
+                        st.rerun()
 
     with col_cart:
-        st.subheader("🛒 السلة")
-        total_price = 0
-        order_summary = ""
-        
-        for name, qty in list(st.session_state.cart.items()):
-            if qty > 0:
-                p_info = next(x for x in st.session_state.db['products'] if x['name'] == name)
-                item_total = qty * p_info['price']
-                total_price += item_total
-                st.write(f"**{name}** (x{qty}) = {item_total} دج")
-                order_summary += f"- {name} (x{qty})\n"
-                if st.button("إزالة ❌", key=f"rel_{name}"):
-                    st.session_state.cart[name] = 0
+        st.subheader("🛒 سلة الطلبات")
+        total_items = 0
+        order_details = ""
+        for n, q in list(st.session_state.cart.items()):
+            if q > 0:
+                p_info = next(x for x in st.session_state.db['products'] if x['name'] == n)
+                total_items += q * p_info['price']
+                st.write(f"✅ {n} (x{q})")
+                order_details += f"- {n} (x{q}) = {q*p_info['price']} دج\n"
+                if st.button(f"حذف {n}", key=f"del_{n}"):
+                    st.session_state.cart[n] = 0
                     st.rerun()
         
-        st.divider()
-        st.markdown(f"### الإجمالي: {total_price} دج")
-        
-        cust_name = st.text_input("اسم الزبون:")
-        phone = st.text_input("رقم الهاتف:")
-        
-        if st.button("✅ تأكيد وحفظ الطلب") and total_price > 0 and cust_name:
-            new_order = {
-                "id": len(st.session_state.db['orders']) + 1,
-                "customer": cust_name,
-                "details": order_summary,
-                "total": total_price,
-                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "status": "قيد التجهيز 🟡"
-            }
-            st.session_state.db['orders'].append(new_order)
-            save_data(st.session_state.db)
-            st.success("تم تسجيل الطلب في السجل!")
+        if total_items > 0:
+            st.divider()
+            reg = st.selectbox("منطقة التوصيل:", list(st.session_state.db['delivery_fees'].keys()))
+            fee = st.session_state.db['delivery_fees'][reg]
+            grand_total = total_items + fee
+            st.markdown(f"### الإجمالي: {grand_total} دج")
             
-        if total_price > 0 and cust_name:
-            msg = f"طلب جديد من: {cust_name}\nالهاتف: {phone}\n{order_summary}الإجمالي: {total_price} دج"
-            whatsapp_url = f"https://wa.me/213770000000?text={urllib.parse.quote(msg)}" # استبدل بالرقم الخاص بك
-            st.link_button("📲 إرسال الطلب عبر واتساب", whatsapp_url)
+            # معلومات الزبون
+            u_name = st.text_input("الاسم الكامل:")
+            u_phone = st.text_input("رقم الهاتف:")
+            u_address = st.text_area("العنوان بالتفصيل:")
+            
+            if st.button("إرسال الطلب عبر واتساب 📲"):
+                if u_name and u_phone and u_address:
+                    # حفظ في السجل
+                    new_order = {
+                        "التاريخ": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "الزبون": u_name, "الهاتف": u_phone, "العنوان": u_address,
+                        "المنطقة": reg, "المجموع": grand_total, "الطلبات": order_details
+                    }
+                    st.session_state.db['orders'].append(new_order)
+                    save_data(st.session_state.db)
+                    
+                    # رابط الواتساب
+                    full_msg = f"📢 *طلب جديد من SM KhadamaTic*\n\n👤 الزبون: {u_name}\n📞 الهاتف: {u_phone}\n📍 العنوان: {u_address}\n🚚 المنطقة: {reg}\n\n📦 الطلبات:\n{order_details}\n💰 *الإجمالي النهائي: {grand_total} دج*"
+                    wa_url = f"https://wa.me/213770000000?text={urllib.parse.quote(full_msg)}"
+                    st.markdown(f'<meta http-equiv="refresh" content="0;url={wa_url}">', unsafe_allow_html=True)
+                    st.success("جاري تحويلك للواتساب...")
+                else:
+                    st.warning("مولاي، يرجى ملء كل المعلومات أولاً!")
 
-# --- التبويب 2: السجل (محمي) ---
-with t2:
-    if check_auth("السجل"):
-        st.subheader("📈 سجل المبيعات")
+# --- لوحة التحكم (مخفية - تظهر فقط بالرابط السري) ---
+else:
+    st.title("🛠 لوحة تحكم مولاي طارق")
+    tab1, tab2, tab3 = st.tabs(["📦 المنتجات", "📍 التوصيل", "📊 سجل المبيعات"])
+    
+    with tab1:
+        with st.form("p_form"):
+            n = st.text_input("اسم المنتج")
+            p = st.number_input("السعر", min_value=0)
+            c = st.selectbox("القسم", st.session_state.db['categories'])
+            if st.form_submit_button("إضافة"):
+                st.session_state.db['products'].append({"name": n, "price": p, "category": c})
+                save_data(st.session_state.db)
+                st.rerun()
+
+    with tab3:
         if st.session_state.db['orders']:
             df = pd.DataFrame(st.session_state.db['orders'])
-            st.dataframe(df, use_container_width=True)
-            if st.button("مسح السجل 🗑️"):
-                st.session_state.db['orders'] = []
-                save_data(st.session_state.db)
-                st.rerun()
+            st.dataframe(df)
+            
+            # زر التصدير لإكسل (Export to Excel)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Orders')
+            
+            st.download_button(
+                label="📥 تحميل السجل كملف Excel",
+                data=output.getvalue(),
+                file_name=f"orders_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         else:
-            st.info("السجل فارغ.")
-
-# --- التبويب 3: الإدارة (محمي) ---
-with t3:
-    if check_auth("الإدارة"):
-        st.subheader("🛠 إضافة منتج جديد")
-        with st.form("add_product", clear_on_submit=True):
-            name = st.text_input("اسم المنتج")
-            price = st.number_input("السعر (دج)", min_value=0)
-            category = st.selectbox("الصنف", st.session_state.db['categories'])
-            if st.form_submit_button("إضافة للمتجر ✅"):
-                if name:
-                    st.session_state.db['products'].append({"name": name, "price": price, "category": category})
-                    save_data(st.session_state.db)
-                    st.success(f"تمت إضافة {name} بنجاح!")
-                    st.rerun()
-        
-        st.divider()
-        st.subheader("📋 قائمة المنتجات الحالية")
-        for i, p in enumerate(st.session_state.db['products']):
-            col1, col2 = st.columns([3, 1])
-            col1.write(f"**{p['name']}** - {p['price']} دج")
-            if col2.button("حذف 🗑", key=f"del_p_{i}"):
-                st.session_state.db['products'].pop(i)
-                save_data(st.session_state.db)
-                st.rerun()
+            st.info("لا توجد طلبات في السجل بعد.")
