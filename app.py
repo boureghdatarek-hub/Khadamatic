@@ -10,67 +10,25 @@ st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
 <style>
-    /* تثبيت ألوان الخلفية والنصوص لمنع مشاكل الـ Dark Mode */
-    .stApp {
-        background-color: #f9f9f9;
-        color: #333333;
-    }
-    
-    /* تنسيق كروت المنتجات لتكون واضحة جداً في الهاتف */
+    .stApp { background-color: #f9f9f9; color: #333333; }
     .product-card { 
-        background: white !important; 
-        padding: 15px; 
-        border-radius: 15px; 
-        border: 1px solid #ddd; 
-        text-align: center; 
-        margin-bottom: 20px;
+        background: white !important; padding: 15px; border-radius: 15px; 
+        border: 1px solid #ddd; text-align: center; margin-bottom: 20px;
         box-shadow: 0px 4px 6px rgba(0,0,0,0.05);
     }
-    
     .product-img { 
-        width: 100%; 
-        height: 150px; 
-        object-fit: contain; 
-        background-color: white; 
-        margin-bottom: 10px; 
-        border-radius: 10px;
+        width: 100%; height: 150px; object-fit: contain; 
+        background-color: white; margin-bottom: 10px; border-radius: 10px;
     }
-
-    /* تحسين شكل الأزرار لتكون أنيقة في الهاتف */
     .stButton > button { 
-        border-radius: 25px !important; 
-        border: 2px solid #006341 !important; 
-        background-color: white !important; 
-        color: #006341 !important; 
-        font-weight: bold !important;
-        width: 100%;
-        transition: 0.3s;
+        border-radius: 25px !important; border: 2px solid #006341 !important; 
+        background-color: white !important; color: #006341 !important; 
+        font-weight: bold !important; width: 100%; transition: 0.3s;
     }
-    
-    .stButton > button:hover { 
-        background-color: #006341 !important; 
-        color: white !important; 
-    }
-
-    /* نصوص الأسعار */
-    .price-text { 
-        color: #006341 !important; 
-        font-weight: bold; 
-        font-size: 1.3rem; 
-        margin: 10px 0;
-    }
-
-    /* تحسين العناوين لتظهر بوضوح في كل الأوضاع */
-    h1, h2, h3, p, span, label {
-        color: #1a1a1a !important;
-    }
-
-    /* تنسيق خاص لحقول الإدخال لتجنب اختفائها في الوضع الليلي */
-    input, textarea, select {
-        background-color: white !important;
-        color: black !important;
-        border: 1px solid #ccc !important;
-    }
+    .stButton > button:hover { background-color: #006341 !important; color: white !important; }
+    .price-text { color: #006341 !important; font-weight: bold; font-size: 1.3rem; margin: 10px 0; }
+    h1, h2, h3, p, span, label { color: #1a1a1a !important; }
+    input, textarea, select { background-color: white !important; color: black !important; border: 1px solid #ccc !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -151,59 +109,49 @@ if is_admin:
             if c3.button("حذف", key=f"sdel_{i}"):
                 st.session_state.db["sellers"].pop(i); save_db(st.session_state.db); st.rerun()
 
-    with tabs[3]: # السجلات مع ميزة التجميع و Excel
-        st.subheader("📊 سجل الطلبات المستلمة")
+    with tabs[3]: # السجلات (المصلحة والآمنة)
+        st.subheader("📊 سجل الطلبات")
         if st.session_state.db["orders"]:
             df_orders = pd.DataFrame(st.session_state.db["orders"])
-            
-            # --- ميزة التقرير التجميعي Excel ---
             all_items = []
-            for detail in df_orders['details']:
-                # تفكيك النصوص مثل "تفاح (2كغ), بطاطا (3كغ)"
-                parts = detail.split(", ")
-                for p in parts:
-                    if "(" in p:
-                        name_part = p.split(" (")[0]
-                        qty_part = float(p.split("(")[1].replace("كغ)", ""))
-                        all_items.append({"المنتج": name_part, "الكمية الكلية": qty_part})
-            
-            df_summary = pd.DataFrame(all_items).groupby("المنتج").sum().reset_index()
+            if 'details' in df_orders.columns:
+                for detail in df_orders['details'].dropna():
+                    parts = str(detail).split(", ")
+                    for p in parts:
+                        if "(" in p:
+                            try:
+                                name_part = p.split(" (")[0]
+                                qty_part = float(p.split("(")[1].replace("كغ)", ""))
+                                all_items.append({"المنتج": name_part, "الكمية الكلية": qty_part})
+                            except: pass
 
-            col_exp1, col_exp2 = st.columns(2)
-            with col_exp1:
-                # تصدير السجل الكامل
-                buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                    df_orders.to_excel(writer, index=False, sheet_name='الطلبات')
-                st.download_button("📥 تحميل سجل الطلبات (Excel)", buffer, "orders_report.xlsx", "application/vnd.ms-excel")
+            if all_items:
+                df_summary = pd.DataFrame(all_items).groupby("المنتج").sum().reset_index()
+                c_ex1, c_ex2 = st.columns(2)
+                with c_ex1:
+                    buf1 = io.BytesIO()
+                    with pd.ExcelWriter(buf1, engine='xlsxwriter') as wr: df_orders.to_excel(wr, index=False)
+                    st.download_button("📥 سجل الطلبات (Excel)", buf1, "orders.xlsx")
+                with c_ex2:
+                    buf2 = io.BytesIO()
+                    with pd.ExcelWriter(buf2, engine='xlsxwriter') as wr: df_summary.to_excel(wr, index=False)
+                    st.download_button("📊 المشتريات المجتمعة (Excel)", buf2, "summary.xlsx")
             
-            with col_exp2:
-                # تصدير المشتريات المجتمعة (طلبك الخاص)
-                buffer_sum = io.BytesIO()
-                with pd.ExcelWriter(buffer_sum, engine='xlsxwriter') as writer:
-                    df_summary.to_excel(writer, index=False, sheet_name='المشتريات المجتمعة')
-                st.download_button("📊 تحميل المشتريات المجتمعة (Excel)", buffer_sum, "summary_report.xlsx", "application/vnd.ms-excel")
-
-            st.write("### تفاصيل الطلبات:")
-            st.dataframe(df_orders.rename(columns={"name":"الاسم","phone":"الهاتف","total":"المجموع","date":"التاريخ","details":"المنتجات"}), use_container_width=True)
-            
-            if st.button("🗑️ مسح جميع السجلات"):
-                st.session_state.db["orders"] = []
-                save_db(st.session_state.db); st.rerun()
+            st.dataframe(df_orders, use_container_width=True)
+            if st.button("🗑️ تصفير السجلات"):
+                st.session_state.db["orders"] = []; save_db(st.session_state.db); st.rerun()
         else:
-            st.info("لا توجد طلبات مسجلة حتى الآن.")
+            st.info("لا توجد طلبات.")
 
 # --- 5. واجهة الزبائن ---
 else:
     st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
-    
-    # --- ميزة البحث السريع ---
-    search_query = st.text_input("🔍 ابحث عن منتج (مثلاً: طماطم، تفاح...)", "").lower()
+    search_query = st.text_input("🔍 ابحث عن منتج...", "").lower()
 
     cat_list = ["الكل"] + st.session_state.db["categories"]
-    cat_cols = st.columns(len(cat_list))
+    cols = st.columns(len(cat_list))
     for i, category in enumerate(cat_list):
-        if cat_cols[i].button(category, key=f"cat_btn_{category}", use_container_width=True):
+        if cols[i].button(category, key=f"cat_{category}", use_container_width=True):
             st.session_state.selected_cat = category; st.rerun()
 
     st.divider()
@@ -211,84 +159,55 @@ else:
     
     with col_main:
         prods = st.session_state.db["products"]
-        # تصفية حسب القسم والبحث
         if st.session_state.selected_cat != "الكل": 
             prods = [p for p in prods if p.get("cat") == st.session_state.selected_cat]
         if search_query:
             prods = [p for p in prods if search_query in p['name'].lower()]
 
         for i in range(0, len(prods), 3):
-            grid_cols = st.columns(3)
+            grid = st.columns(3)
             for j, p in enumerate(prods[i:i+3]):
-                with grid_cols[j]:
+                with grid[j]:
                     st.markdown('<div class="product-card">', unsafe_allow_html=True)
                     if p.get("img"): st.markdown(f'<img src="data:image/png;base64,{p["img"]}" class="product-img">', unsafe_allow_html=True)
-                    st.subheader(p['name']); st.markdown(f'<p class="price-text">{p["price"]} دج / كغ</p>', unsafe_allow_html=True)
-                    
-                    # --- ميزة تحديد الكمية بدقة ---
-                    q_val = st.number_input("الكمية (كغ)", 0.1, 50.0, 1.0, 0.1, key=f"qty_in_{p['name']}_{i+j}")
-                    
-                    if st.button("إضافة للسلة 🛒", key=f"btn_add_{p['name']}_{i+j}"):
-                        # إضافة المنتج مع الكمية المختارة
-                        st.session_state.cart.append({"name": p['name'], "price": p['price'] * q_val, "qty": q_val, "seller": p['seller']})
+                    st.subheader(p['name']); st.markdown(f'<p class="price-text">{p["price"]} دج</p>', unsafe_allow_html=True)
+                    q = st.number_input("الكمية", 0.1, 50.0, 1.0, 0.1, key=f"q_{p['name']}_{i+j}")
+                    if st.button("إضافة 🛒", key=f"add_{p['name']}_{i+j}"):
+                        st.session_state.cart.append({"name": p['name'], "price": p['price']*q, "qty": q, "seller": p['seller']})
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
     with col_cart:
-        st.subheader("🛒 سلتك المجمعة")
+        st.subheader("🛒 السلة")
         total = 0
-        if not st.session_state.cart: 
-            st.write("السلة فارغة")
+        if not st.session_state.cart: st.write("فارغة")
         else:
-            summary_dict = {}
+            sum_dict = {}
             for item in st.session_state.cart:
-                name = item['name']
-                if name in summary_dict:
-                    summary_dict[name]['qty'] += item['qty']
-                    summary_dict[name]['total_price'] += item['price']
-                else:
-                    summary_dict[name] = {'qty': item['qty'], 'total_price': item['price'], 'seller': item['seller']}
+                n = item['name']
+                if n in sum_dict:
+                    sum_dict[n]['qty'] += item['qty']; sum_dict[n]['tp'] += item['price']
+                else: sum_dict[n] = {'qty': item['qty'], 'tp': item['price'], 's': item['seller']}
                 total += item['price']
 
-            for name, info in summary_dict.items():
-                c1, c2, c3 = st.columns([2, 1.5, 0.5])
-                c1.write(f"**{name}**")
-                c2.write(f"{info['qty']:.1f} كغ")
-                if c3.button("❌", key=f"del_{name}"):
-                    st.session_state.cart = [x for x in st.session_state.cart if x['name'] != name]
-                    st.rerun()
+            for n, info in sum_dict.items():
+                c1, c2, c3 = st.columns([2, 1, 0.5])
+                c1.write(n); c2.write(f"{info['qty']}كغ")
+                if c3.button("❌", key=f"rem_{n}"):
+                    st.session_state.cart = [x for x in st.session_state.cart if x['name'] != n]; st.rerun()
             
-            st.divider()
             st.write(f"### المجموع: {int(total)} دج")
-
-            with st.form("order_submission_form"):
-                c_name = st.text_input("اسمك")
-                c_phone = st.text_input("رقم هاتفك")
-                c_addr = st.text_area("عنوان التوصيل")
+            with st.form("order_form"):
+                user_n, user_p, user_a = st.text_input("الاسم"), st.text_input("الهاتف"), st.text_area("العنوان")
                 drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-                sel_driver = st.selectbox("اختر الموصل", [d["name"] for d in drivers]) if drivers else "لا يوجد موصل"
+                sel_d = st.selectbox("الموصل", [d["name"] for d in drivers]) if drivers else "لا يوجد"
                 
-                if st.form_submit_button("✅ تأكيد وإرسال الطلب"):
-                    if c_name and c_phone and c_addr and drivers:
-                        d_info = next(d for d in drivers if d["name"] == sel_driver)
-                        details_text = ", ".join([f"{n} ({inf['qty']:.1f}كغ)" for n, inf in summary_dict.items()])
-                        
-                        st.session_state.db["orders"].append({
-                            "name": c_name, "phone": c_phone, "total": int(total),
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": details_text
-                        })
+                if st.form_submit_button("✅ تأكيد"):
+                    if user_n and user_p and drivers:
+                        d_info = next(d for d in drivers if d["name"] == sel_d)
+                        dtls = ", ".join([f"{n} ({inf['qty']}كغ)" for n, inf in sum_dict.items()])
+                        st.session_state.db["orders"].append({"name": user_n, "phone": user_p, "total": int(total), "date": datetime.now().strftime("%Y-%m-%d"), "details": dtls})
                         save_db(st.session_state.db)
-
-                        msg = f"طلب جديد: {c_name}\nالهاتف: {c_phone}\nالعنوان: {c_addr}\nالمجموع: {int(total)} دج\nالمنتجات: {details_text}"
-                        encoded_msg = urllib.parse.quote(msg)
-                        
-                        st.success("✅ تم تسجيل الطلب!")
-                        st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #006341; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 10px; font-weight: bold;">إرسال للموصل 🚚</a>', unsafe_allow_html=True)
-                        
-                        sellers_in_cart = set([inf['seller'] for inf in summary_dict.values()])
-                        for s_name in sellers_in_cart:
-                            s_info = next((s for s in st.session_state.db["sellers"] if s["name"] == s_name), None)
-                            if s_info:
-                                st.markdown(f'<a href="https://wa.me/{s_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #25D366; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 5px; font-weight: bold;">إرسال للبائع ({s_name}) 👤</a>', unsafe_allow_html=True)
-                    else:
-                        st.error("⚠️ تأكد من ملء البيانات وتوفر الموصلين")
+                        msg = urllib.parse.quote(f"طلب من: {user_n}\nالهاتف: {user_p}\nالمنتجات: {dtls}\nالمجموع: {int(total)} دج")
+                        st.success("تم!")
+                        st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:10px;border-radius:8px;">واتساب الموصل</a>', unsafe_allow_html=True)
