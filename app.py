@@ -1,6 +1,7 @@
 import streamlit as st
 import json, os, base64
 import urllib.parse
+import pandas as pd
 from datetime import datetime
 
 # --- 1. إعدادات الصفحة والتنسيق (CSS) ---
@@ -31,17 +32,16 @@ def save_db(data):
 if 'db' not in st.session_state: st.session_state.db = load_db()
 if 'cart' not in st.session_state: st.session_state.cart = []
 if 'selected_cat' not in st.session_state: st.session_state.selected_cat = "الكل"
-if 'quantities' not in st.session_state: st.session_state.quantities = {}
 
 # --- 3. تحديد الصلاحيات ---
 is_admin = st.query_params.get("view") == "tarek_king"
 
-# --- لوحة التحكم ---
+# --- 4. لوحة التحكم (Admin) ---
 if is_admin:
     st.title("⚙️ لوحة التحكم - SM KHADAMATIC")
     tabs = st.tabs(["📦 المنتجات", "🚚 الموصلين", "👥 البائعين", "📊 السجلات"])
 
-    with tabs[0]:
+    with tabs[0]: # المنتجات
         st.subheader("إضافة منتج جديد")
         with st.form("admin_p_form", clear_on_submit=True):
             n = st.text_input("اسم المنتج")
@@ -63,7 +63,7 @@ if is_admin:
             if c3.button("حذف", key=f"del_p_{i}"):
                 st.session_state.db["products"].pop(i); save_db(st.session_state.db); st.rerun()
 
-    with tabs[1]:
+    with tabs[1]: # الموصلين
         st.subheader("إدارة الموصلين")
         with st.form("add_driver_form"):
             dn = st.text_input("اسم الموصل"); dp = st.text_input("رقم الهاتف")
@@ -81,7 +81,7 @@ if is_admin:
             if c4.button("حذف", key=f"ddel_{i}"):
                 st.session_state.db["drivers"].pop(i); save_db(st.session_state.db); st.rerun()
 
-    with tabs[2]:
+    with tabs[2]: # البائعين
         st.subheader("إدارة البائعين")
         with st.form("add_seller_form"):
             sn = st.text_input("اسم البائع"); sp = st.text_input("رقم الهاتف")
@@ -93,12 +93,23 @@ if is_admin:
             c1.write(f"👤 {s['name']}"); c2.write(f"📞 {s['phone']}")
             if c3.button("حذف", key=f"sdel_{i}"):
                 st.session_state.db["sellers"].pop(i); save_db(st.session_state.db); st.rerun()
-    
-    with tabs[3]:
-        st.subheader("📊 السجلات")
-        st.write(st.session_state.db["orders"])
 
-# --- 4. واجهة الزبائن ---
+    with tabs[3]: # السجلات (الجدول الجديد)
+        st.subheader("📊 سجل الطلبات المستلمة")
+        if st.session_state.db["orders"]:
+            df_orders = pd.DataFrame(st.session_state.db["orders"])
+            df_orders = df_orders.rename(columns={
+                "name": "اسم الزبون", "phone": "رقم الهاتف",
+                "total": "المجموع (دج)", "date": "تاريخ الطلب", "details": "المنتجات"
+            })
+            st.dataframe(df_orders, use_container_width=True)
+            if st.button("🗑️ مسح جميع السجلات"):
+                st.session_state.db["orders"] = []
+                save_db(st.session_state.db); st.rerun()
+        else:
+            st.info("لا توجد طلبات مسجلة حتى الآن.")
+
+# --- 5. واجهة الزبائن ---
 else:
     st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
     cat_list = ["الكل"] + st.session_state.db["categories"]
@@ -110,7 +121,7 @@ else:
     st.divider()
     col_main, col_cart = st.columns([3, 1.8]) 
     
-    with col_main:
+    with col_main: # عرض المنتجات
         prods = st.session_state.db["products"]
         if st.session_state.selected_cat != "الكل": prods = [p for p in prods if p.get("cat") == st.session_state.selected_cat]
         for i in range(0, len(prods), 3):
@@ -124,30 +135,26 @@ else:
                         st.session_state.cart.append(p); st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_cart:
+    with col_cart: # السلة ونموذج الطلب
         st.subheader("🛒 سلتك المجمعة")
         total = 0
         if not st.session_state.cart: 
             st.write("السلة فارغة")
         else:
             summary_dict = {}
-            for idx, item in enumerate(st.session_state.cart):
+            for item in st.session_state.cart:
                 name = item['name']
-                price = item['price']
-                # حساب الكمية (افتراضياً 1 إذا لم تحدد)
-                qty_val = 1.0
-                
                 if name in summary_dict:
-                    summary_dict[name]['qty'] += qty_val
-                    summary_dict[name]['total_price'] += price
+                    summary_dict[name]['qty'] += 1
+                    summary_dict[name]['total_price'] += item['price']
                 else:
-                    summary_dict[name] = {'qty': qty_val, 'total_price': price, 'seller': item['seller']}
-                total += price
+                    summary_dict[name] = {'qty': 1, 'total_price': item['price'], 'seller': item['seller']}
+                total += item['price']
 
             for name, info in summary_dict.items():
                 c1, c2, c3 = st.columns([2, 1.5, 0.5])
-                c1.write(f"**{name}** ({info['total_price']} دج)")
-                c2.write(f"الكمية: {int(info['qty'])} كغ")
+                c1.write(f"**{name}**")
+                c2.write(f"{int(info['qty'])} كغ")
                 if c3.button("❌", key=f"del_{name}"):
                     st.session_state.cart = [x for x in st.session_state.cart if x['name'] != name]
                     st.rerun()
@@ -155,43 +162,40 @@ else:
             st.divider()
             st.write(f"### المجموع: {total} دج")
 
-            # --- هنا التعديل الجوهري باستخدام Form لضمان قراءة البيانات ---
-            with st.form("order_submission_form", clear_on_submit=False):
+            # نموذج الطلب (مكانه هنا صحيح مرة واحدة)
+            with st.form("order_submission_form"):
                 c_name = st.text_input("اسمك")
-                c_phone = st.text_input("هاتفك")
-                c_addr = st.text_area("العنوان")
-                
+                c_phone = st.text_input("رقم هاتفك")
+                c_addr = st.text_area("عنوان التوصيل")
                 drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-                sel_driver = None
-                if drivers:
-                    sel_driver = st.selectbox("الموصل", [d["name"] for d in drivers])
+                sel_driver = st.selectbox("اختر الموصل", [d["name"] for d in drivers]) if drivers else "لا يوجد موصل"
                 
-                submit_order = st.form_submit_button("✅ تأكيد وإرسال الطلب")
+                if st.form_submit_button("✅ تأكيد وإرسال الطلب"):
+                    if c_name and c_phone and c_addr and drivers:
+                        d_info = next(d for d in drivers if d["name"] == sel_driver)
+                        
+                        # تجهيز البيانات
+                        details_text = ", ".join([f"{n} ({int(inf['qty'])}كغ)" for n, inf in summary_dict.items()])
+                        
+                        # 1. الحفظ في السجلات
+                        st.session_state.db["orders"].append({
+                            "name": c_name, "phone": c_phone, "total": total,
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": details_text
+                        })
+                        save_db(st.session_state.db)
 
-                if submit_order:
-                    if c_name and c_phone and c_addr:
-                        if drivers:
-                            d_info = next(d for d in drivers if d["name"] == sel_driver)
-                            msg = f"طلب جديد: {c_name}\nالهاتف: {c_phone}\nالعنوان: {c_addr}\nالمجموع: {total} دج\nالمنتجات:\n"
-                            for n, inf in summary_dict.items():
-                                msg += f"- {n} {int(inf['qty'])} كغ\n"
-                            
-                            encoded_msg = urllib.parse.quote(msg)
-                            st.success("✅ تم تجهيز روابط الواتساب!")
-                            
-                            # عرض أزرار التواصل
-                            st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #006341; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 10px; font-weight: bold;">إرسال للموصل 🚚</a>', unsafe_allow_html=True)
-                            
-                            sellers_in_cart = list(set([inf['seller'] for inf in summary_dict.values()]))
-                            for s_name in sellers_in_cart:
-                                s_info = next((s for s in st.session_state.db["sellers"] if s["name"] == s_name), None)
-                                if s_info:
-                                    st.markdown(f'<a href="https://wa.me/{s_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #25D366; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 5px; font-weight: bold;">إرسال للبائع ({s_name}) 👤</a>', unsafe_allow_html=True)
-                            
-                            # حفظ الطلب في السجل
-                            st.session_state.db["orders"].append({"name": c_name, "total": total, "date": str(datetime.now())})
-                            save_db(st.session_state.db)
-                        else:
-                            st.error("⚠️ لا يوجد موصل متاح حالياً")
+                        # 2. إنشاء روابط الواتساب
+                        msg = f"طلب جديد: {c_name}\nالهاتف: {c_phone}\nالعنوان: {c_addr}\nالمجموع: {total} دج\nالمنتجات: {details_text}"
+                        encoded_msg = urllib.parse.quote(msg)
+                        
+                        st.success("✅ تم تسجيل الطلب!")
+                        st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #006341; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 10px; font-weight: bold;">إرسال للموصل 🚚</a>', unsafe_allow_html=True)
+                        
+                        # روابط البائعين
+                        sellers_in_cart = set([inf['seller'] for inf in summary_dict.values()])
+                        for s_name in sellers_in_cart:
+                            s_info = next((s for s in st.session_state.db["sellers"] if s["name"] == s_name), None)
+                            if s_info:
+                                st.markdown(f'<a href="https://wa.me/{s_info["phone"]}?text={encoded_msg}" target="_blank" style="background-color: #25D366; color: white; padding: 12px; text-decoration: none; display: block; text-align: center; border-radius: 8px; margin-bottom: 5px; font-weight: bold;">إرسال للبائع ({s_name}) 👤</a>', unsafe_allow_html=True)
                     else:
-                        st.error("⚠️ يرجى ملء الاسم والهاتف والعنوان")
+                        st.error("⚠️ تأكد من ملء البيانات وتوفر الموصلين")
