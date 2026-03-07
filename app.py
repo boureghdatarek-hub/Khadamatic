@@ -10,34 +10,35 @@ st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
 <style>
-    /* تثبيت المظهر العام */
-    .stApp { background-color: #f9f9f9; color: #333333; }
+    /* 1. Global Text Protection */
+    .stApp { background-color: #f9f9f9; }
     
-    /* كروت المنتجات */
-    .product-card { 
-        background: white !important; padding: 15px; border-radius: 15px; 
-        border: 1px solid #ddd; text-align: center; margin-bottom: 20px;
-        box-shadow: 0px 4px 6px rgba(0,0,0,0.05);
-    }
-    .product-img { 
-        width: 100%; height: 150px; object-fit: contain; 
-        background-color: white; margin-bottom: 10px; border-radius: 10px;
+    /* 2. Fix for the Delivery Dropdown (Invisible Text Fix) */
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #006341 !important; /* High contrast green for the name */
+        font-weight: bold !important;
     }
 
-    /* الأزرار المحسنة */
-    .stButton > button { 
-        border-radius: 25px !important; border: 2px solid #006341 !important; 
-        background-color: white !important; color: #006341 !important; 
-        font-weight: bold !important; width: 100%; transition: 0.3s;
+    /* 3. Dropdown Menu Items */
+    ul[role="listbox"] li {
+        color: #333333 !important;
+        background-color: white !important;
     }
-    .stButton > button:hover { background-color: #006341 !important; color: white !important; }
 
-    /* نصوص الأسعار */
-    .price-text { color: #006341 !important; font-weight: bold; font-size: 1.3rem; margin: 10px 0; }
+    /* 4. Labels and Titles */
+    .stSelectbox label p {
+        color: #006341 !important;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
 
-    /* حماية النصوص في الوضع الليلي */
-    h1, h2, h3, p, span, label, div { color: #1a1a1a !important; }
-    input, textarea, select { background-color: white !important; color: black !important; border: 1px solid #ccc !important; }
+    /* 5. Input Fields for Phone/Address */
+    input, textarea {
+        background-color: white !important;
+        color: black !important;
+        border: 2px solid #ddd !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -239,4 +240,5 @@ else:
                         st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">مراسلة الموصل عبر واتساب 🚚</a>', unsafe_allow_html=True)
                         st.session_state.cart = []
                     else: st.error("يرجى ملء كافة البيانات وتوفر موصل")
+
 
