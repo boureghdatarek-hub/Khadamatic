@@ -8,45 +8,39 @@ import io
 # --- 1. إعدادات الصفحة والتنسيق (CSS المحسن للهاتف والـ Dark Mode) ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
+st.markdown("""
 <style>
-    /* 1. Global Background & Text Reset */
-    .stApp { background-color: #ffffff !important; }
+    /* تثبيت المظهر العام */
+    .stApp { background-color: #f9f9f9; color: #333333; }
     
-    /* 2. Force all text in the Cart and Form to be DARK */
-    .stMarkdown, p, span, label, div { 
-        color: #1a1a1a !important; 
+    /* كروت المنتجات */
+    .product-card { 
+        background: white !important; padding: 15px; border-radius: 15px; 
+        border: 1px solid #ddd; text-align: center; margin-bottom: 20px;
+        box-shadow: 0px 4px 6px rgba(0,0,0,0.05);
+    }
+    .product-img { 
+        width: 100%; height: 150px; object-fit: contain; 
+        background-color: white; margin-bottom: 10px; border-radius: 10px;
     }
 
-    /* 3. Fix Input Fields (Name, Phone, Address) */
-    /* This ensures inputs have a light background and dark text */
-    input, textarea, [data-baseweb="select"] {
-        background-color: #f0f2f6 !important;
-        color: #000000 !important;
-        border: 1px solid #006341 !important;
+    /* الأزرار المحسنة */
+    .stButton > button { 
+        border-radius: 25px !important; border: 2px solid #006341 !important; 
+        background-color: white !important; color: #006341 !important; 
+        font-weight: bold !important; width: 100%; transition: 0.3s;
     }
+    .stButton > button:hover { background-color: #006341 !important; color: white !important; }
 
-    /* 4. Fix Selectbox (Delivery Man Name) */
-    /* This forces the dropdown text to be black so you can see 'Salim' or 'Tarek' */
-    div[data-baseweb="select"] * {
-        color: #000000 !important;
-    }
+    /* نصوص الأسعار */
+    .price-text { color: #006341 !important; font-weight: bold; font-size: 1.3rem; margin: 10px 0; }
 
-    /* 5. Mobile Specific Fixes */
-    @media (max-width: 640px) {
-        .product-card { background: #f9f9f9 !important; border: 1px solid #eee; }
-        h1, h2, h3 { color: #006341 !important; }
-        
-        /* Ensures the 'Total Amount' (المجموع) is visible */
-        .stMarkdown h3 { color: #1a1a1a !important; }
-    }
-
-    /* 6. Button Style */
-    .stButton > button {
-        background-color: #006341 !important;
-        color: white !important;
-        border-radius: 10px !important;
-    }
+    /* حماية النصوص في الوضع الليلي */
+    h1, h2, h3, p, span, label, div { color: #1a1a1a !important; }
+    input, textarea, select { background-color: white !important; color: black !important; border: 1px solid #ccc !important; }
 </style>
+""", unsafe_allow_html=True)
+
 # --- 2. إدارة قاعدة البيانات ---
 DB_FILE = "sm_khadamat_db.json"
 def load_db():
@@ -228,8 +222,7 @@ else:
                 u_phone = st.text_input("الهاتف")
                 u_addr = st.text_area("العنوان بالتفصيل")
                 drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-                # ابحث عن هذا السطر في كودك وحدثه:
-                sel_d = st.selectbox("✨ اختر الموصل المتاح:", [f"🚚 {d['name']}" for d in drivers]) if drivers else "لا يوجد موصل حالياً"
+                sel_d = st.selectbox("الموصل المتاح", [d["name"] for d in drivers]) if drivers else "لا يوجد موصل حالياً"
                 
                 if st.form_submit_button("✅ إرسال الطلب"):
                     if u_name and u_phone and drivers:
@@ -245,6 +238,3 @@ else:
                         st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">مراسلة الموصل عبر واتساب 🚚</a>', unsafe_allow_html=True)
                         st.session_state.cart = []
                     else: st.error("يرجى ملء كافة البيانات وتوفر موصل")
-
-
-
