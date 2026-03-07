@@ -8,40 +8,45 @@ import io
 # --- 1. إعدادات الصفحة والتنسيق (CSS المحسن للهاتف والـ Dark Mode) ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
-st.markdown("""
 <style>
-    /* 1. Global Text Protection */
-    .stApp { background-color: #f9f9f9; }
+    /* 1. Global Background & Text Reset */
+    .stApp { background-color: #ffffff !important; }
     
-    /* 2. Fix for the Delivery Dropdown (Invisible Text Fix) */
-    div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #006341 !important; /* High contrast green for the name */
-        font-weight: bold !important;
+    /* 2. Force all text in the Cart and Form to be DARK */
+    .stMarkdown, p, span, label, div { 
+        color: #1a1a1a !important; 
     }
 
-    /* 3. Dropdown Menu Items */
-    ul[role="listbox"] li {
-        color: #333333 !important;
-        background-color: white !important;
+    /* 3. Fix Input Fields (Name, Phone, Address) */
+    /* This ensures inputs have a light background and dark text */
+    input, textarea, [data-baseweb="select"] {
+        background-color: #f0f2f6 !important;
+        color: #000000 !important;
+        border: 1px solid #006341 !important;
     }
 
-    /* 4. Labels and Titles */
-    .stSelectbox label p {
-        color: #006341 !important;
-        font-weight: bold;
-        font-size: 1.1rem;
+    /* 4. Fix Selectbox (Delivery Man Name) */
+    /* This forces the dropdown text to be black so you can see 'Salim' or 'Tarek' */
+    div[data-baseweb="select"] * {
+        color: #000000 !important;
     }
 
-    /* 5. Input Fields for Phone/Address */
-    input, textarea {
-        background-color: white !important;
-        color: black !important;
-        border: 2px solid #ddd !important;
+    /* 5. Mobile Specific Fixes */
+    @media (max-width: 640px) {
+        .product-card { background: #f9f9f9 !important; border: 1px solid #eee; }
+        h1, h2, h3 { color: #006341 !important; }
+        
+        /* Ensures the 'Total Amount' (المجموع) is visible */
+        .stMarkdown h3 { color: #1a1a1a !important; }
+    }
+
+    /* 6. Button Style */
+    .stButton > button {
+        background-color: #006341 !important;
+        color: white !important;
+        border-radius: 10px !important;
     }
 </style>
-""", unsafe_allow_html=True)
-
 # --- 2. إدارة قاعدة البيانات ---
 DB_FILE = "sm_khadamat_db.json"
 def load_db():
@@ -240,5 +245,6 @@ else:
                         st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">مراسلة الموصل عبر واتساب 🚚</a>', unsafe_allow_html=True)
                         st.session_state.cart = []
                     else: st.error("يرجى ملء كافة البيانات وتوفر موصل")
+
 
 
