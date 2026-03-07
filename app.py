@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime
 import io
 
-# --- 1. إعدادات الصفحة والتنسيق (CSS المحسن للهاتف والـ Dark Mode) ---
+# --- 1. إعدادات الصفحة والتنسيق (الإصلاح الشامل للألوان في الهاتف) ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
@@ -13,6 +13,19 @@ st.markdown("""
     /* تثبيت المظهر العام */
     .stApp { background-color: #f9f9f9; color: #333333; }
     
+    /* إصلاح أسماء الموصلين في القائمة المنسدلة */
+    div[data-baseweb="select"] * {
+        color: #ffffff !important; 
+        background-color: #262730 !important;
+    }
+
+    /* جعل عنوان "اختر الموصل" واضحاً */
+    .stSelectbox label p {
+        color: #006341 !important; 
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
     /* كروت المنتجات */
     .product-card { 
         background: white !important; padding: 15px; border-radius: 15px; 
@@ -24,7 +37,7 @@ st.markdown("""
         background-color: white; margin-bottom: 10px; border-radius: 10px;
     }
 
-    /* الأزرار المحسنة */
+    /* الأزرار */
     .stButton > button { 
         border-radius: 25px !important; border: 2px solid #006341 !important; 
         background-color: white !important; color: #006341 !important; 
@@ -35,9 +48,9 @@ st.markdown("""
     /* نصوص الأسعار */
     .price-text { color: #006341 !important; font-weight: bold; font-size: 1.3rem; margin: 10px 0; }
 
-    /* حماية النصوص في الوضع الليلي */
-    h1, h2, h3, p, span, label, div { color: #1a1a1a !important; }
-    input, textarea, select { background-color: white !important; color: black !important; border: 1px solid #ccc !important; }
+    /* حماية النصوص العامة */
+    h1, h2, h3, p, span, label { color: #1a1a1a !important; }
+    input, textarea { background-color: white !important; color: black !important; border: 1px solid #ccc !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,8 +135,6 @@ if is_admin:
         st.subheader("📊 سجل الطلبات والتقارير")
         if st.session_state.db["orders"]:
             df_orders = pd.DataFrame(st.session_state.db["orders"])
-            
-            # معالجة الكميات للتجميع
             all_items = []
             if 'details' in df_orders.columns:
                 for detail in df_orders['details'].fillna(""):
@@ -136,7 +147,6 @@ if is_admin:
                                 all_items.append({"المنتج": name_part, "الكمية الكلية": qty_part})
                             except: pass
 
-            # أزرار تحميل Excel
             if all_items:
                 df_summary = pd.DataFrame(all_items).groupby("المنتج").sum().reset_index()
                 c_ex1, c_ex2 = st.columns(2)
@@ -163,7 +173,6 @@ if is_admin:
 else:
     st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
     
-    # البحث والتصنيفات
     search_q = st.text_input("🔍 ابحث عن منتج...", "").lower()
     cat_list = ["الكل"] + st.session_state.db["categories"]
     c_btns = st.columns(len(cat_list))
@@ -221,14 +230,20 @@ else:
                 u_name = st.text_input("الاسم")
                 u_phone = st.text_input("الهاتف")
                 u_addr = st.text_area("العنوان بالتفصيل")
+                
+                # --- تحديد الموصل (النسخة المصلحة) ---
                 drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-                sel_d = st.selectbox("الموصل المتاح", [d["name"] for d in drivers]) if drivers else "لا يوجد موصل حالياً"
+                driver_names = [d['name'] for d in drivers]
+                sel_d = st.selectbox("🚚 اختر الموصل المتاح:", driver_names) if drivers else "لا يوجد موصل"
                 
                 if st.form_submit_button("✅ إرسال الطلب"):
                     if u_name and u_phone and drivers:
                         d_info = next(d for d in drivers if d["name"] == sel_d)
                         dtls = ", ".join([f"{n} ({inf['qty']}كغ)" for n, inf in sum_dict.items()])
-                        st.session_state.db["orders"].append({"name": u_name, "phone": u_phone, "total": int(total), "date": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": dtls})
+                        st.session_state.db["orders"].append({
+                            "name": u_name, "phone": u_phone, "total": int(total), 
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M"), "details": dtls
+                        })
                         save_db(st.session_state.db)
                         
                         msg = f"طلب جديد من: {u_name}\nالهاتف: {u_phone}\nالعنوان: {u_addr}\nالمنتجات: {dtls}\nالمجموع: {int(total)} دج"
