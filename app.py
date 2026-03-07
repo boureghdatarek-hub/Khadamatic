@@ -222,7 +222,8 @@ else:
                 u_phone = st.text_input("الهاتف")
                 u_addr = st.text_area("العنوان بالتفصيل")
                 drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-                sel_d = st.selectbox("الموصل المتاح", [d["name"] for d in drivers]) if drivers else "لا يوجد موصل حالياً"
+                # ابحث عن هذا السطر في كودك وحدثه:
+                sel_d = st.selectbox("✨ اختر الموصل المتاح:", [f"🚚 {d['name']}" for d in drivers]) if drivers else "لا يوجد موصل حالياً"
                 
                 if st.form_submit_button("✅ إرسال الطلب"):
                     if u_name and u_phone and drivers:
@@ -238,3 +239,4 @@ else:
                         st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">مراسلة الموصل عبر واتساب 🚚</a>', unsafe_allow_html=True)
                         st.session_state.cart = []
                     else: st.error("يرجى ملء كافة البيانات وتوفر موصل")
+
