@@ -1,173 +1,162 @@
 import streamlit as st
-import json, os, base64
-import urllib.parse
 import pandas as pd
-from datetime import datetime
+import urllib.parse
 
-# --- 1. تنسيق الواجهة (إلغاء الفراغات والـ CSS) ---
+# --- 1. إعدادات المظهر وإصلاح شريط الأقسام للهاتف ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
 <style>
-    /* تقليل الفراغ العلوي */
-    .block-container { padding-top: 1rem !important; }
+    .stApp { background-color: white !important; }
+    h1, h2, h3, p, b, span, label { color: black !important; }
     
-    /* أزرار التصنيفات */
-    .stButton > button { border-radius: 10px; font-weight: bold; }
-    
-    /* كارت المنتج والـ Grid */
-    .product-box { 
-        border: 1px solid #ddd; padding: 10px; border-radius: 15px; 
-        text-align: center; background: white; margin-bottom: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        min-height: 380px; display: flex; flex-direction: column; justify-content: space-between;
+    /* --- إصلاح شريط الأقسام (Categories) في الهاتف --- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px !important;
+        display: flex !important;
+        overflow-x: auto !important; /* السماح بالسحب لليمين واليسار */
+        white-space: nowrap !important;
+        padding-bottom: 5px !important;
     }
-    .product-img { width: 100%; height: 140px; object-fit: contain; border-radius: 8px; }
-    
-    /* زر الإضافة للسلة (ملون ومميز) */
-    .stButton > button[kind="primary"] { 
-        background-color: #e67e22 !important; border: none !important; color: white !important; 
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f0f2f6 !important;
+        border-radius: 10px !important;
+        padding: 8px 15px !important;
+        color: black !important;
     }
-    
-    .price-text { color: #27ae60; font-weight: bold; font-size: 1.2rem; }
+    .stTabs [aria-selected="true"] {
+        background-color: #006341 !important;
+        color: white !important;
+    }
+
+    /* --- إجبار نظام الـ Grid على العمل --- */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+    }
+    [data-testid="column"] {
+        width: 50% !important;
+        flex: 1 1 50% !important;
+        min-width: 0px !important;
+    }
+
+    .product-card {
+        background: white;
+        padding: 6px;
+        border-radius: 10px;
+        border: 1px solid #f0f0f0;
+        text-align: center;
+        margin-bottom: 6px;
+    }
+
+    /* الأزرار وخانات الإدخال */
+    button, [data-testid="stBaseButton-secondary"] {
+        background-color: white !important;
+        color: #006341 !important;
+        border: 2px solid #006341 !important;
+        border-radius: 15px !important;
+        height: 32px !important;
+        font-size: 13px !important;
+    }
+    input { background-color: #f8f9fa !important; color: black !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. قاعدة البيانات ---
-DB_FILE = "sm_khadamat_db.json"
+# --- 2. جلب البيانات ---
+SHEET_ID = "15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk"
 
-def load_db():
-    
-    
-    
-    
-    defaults = {"products": [], "drivers": [], "orders": [], "categories": ["خضر", "فواكه", "عروض"]}
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                d = json.load(f)
-                for k in defaults:
-                    if k not in d: d[k] = defaults[k]
-                return d
-        except: return defaults
-    return defaults
+@st.cache_data(ttl=5)
+def load_data(sheet_name):
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+    try: return pd.read_csv(url).dropna(how='all')
+    except: return pd.DataFrame()
 
-def save_db(data):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+prods_df = load_data("products")
+drivers_df = load_data("drivers")
 
-if 'db' not in st.session_state: st.session_state.db = load_db()
-if 'cart' not in st.session_state: st.session_state.cart = []
+if 'cart' not in st.session_state: st.session_state.cart = {}
 
-# --- 3. لوحة التحكم ---
-is_admin = st.sidebar.checkbox("🔒 لوحة الإدارة")
-if is_admin:
-    if st.sidebar.text_input("كلمة السر", type="password") == "tarek2026":
-        st.title("⚙️ إدارة SM KHADAMATIC")
-        t1, t2, t3 = st.tabs(["📦 المنتجات", "🚚 الموصلين", "📊 سجل الطلبات"])
-        
-        with t1:
-            with st.form("add_p_form", clear_on_submit=True):
-                col1, col2 = st.columns(2)
-                n = col1.text_input("اسم المنتج")
-                p = col2.number_input("السعر", min_value=1)
-                c = st.selectbox("التصنيف", st.session_state.db["categories"])
-                img = st.file_uploader("الصورة")
-                if st.form_submit_button("إضافة المنتج ✅"):
-                    img_b64 = base64.b64encode(img.read()).decode() if img else ""
-                    st.session_state.db["products"].append({"name": n, "price": p, "cat": c, "img": img_b64})
-                    save_db(st.session_state.db); st.rerun()
+st.markdown("<h2 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h2>", unsafe_allow_html=True)
+
+# --- 3. عرض الأقسام والمنتجات ---
+if not prods_df.empty:
+    search = st.text_input("", placeholder="🔍 ابحث هنا...", label_visibility="collapsed")
+    
+    # تحديد عمود الأقسام
+    cat_col = 'cat' if 'cat' in prods_df.columns else prods_df.columns[2]
+    cats = ["الكل"] + prods_df[cat_col].unique().tolist()
+    
+    tabs = st.tabs(cats)
+    
+    for i, tab in enumerate(tabs):
+        with tab:
+            current_cat = cats[i]
+            df = prods_df if current_cat == "الكل" else prods_df[prods_df[cat_col] == current_cat]
+            if search:
+                df = df[df[df.columns[0]].astype(str).str.contains(search, case=False, na=False)]
             
-            for i, pr in enumerate(st.session_state.db["products"]):
-                c1, c2, c3 = st.columns([1, 4, 1])
-                c2.write(f"**{pr['name']}** - {pr['price']} DA ({pr.get('cat', '')})")
-                if c3.button("🗑️", key=f"del_{i}"):
-                    st.session_state.db["products"].pop(i); save_db(st.session_state.db); st.rerun()
+            # عرض الشبكة
+            for idx in range(0, len(df), 2):
+                cols = st.columns(2)
+                for j in range(2):
+                    if (idx + j) < len(df):
+                        row = df.iloc[idx + j]
+                        p_name = str(row.iloc[0])
+                        p_price = row.iloc[1]
+                        
+                        with cols[j]:
+                            st.markdown('<div class="product-card">', unsafe_allow_html=True)
+                            
+                            img_val = row.get('img') if 'img' in df.columns else None
+                            if pd.notna(img_val) and str(img_val).startswith("http"):
+                                st.image(img_val, use_container_width=True)
+                            else:
+                                st.markdown("<h4>📦</h4>", unsafe_allow_html=True)
+                            
+                            st.markdown(f'<p style="font-size:13px; font-weight:bold; margin:0;">{p_name}</p>', unsafe_allow_html=True)
+                            st.markdown(f'<p style="color:green; font-size:12px; margin:0;">{p_price} دج</p>', unsafe_allow_html=True)
+                            
+                            # مفتاح فريد جداً لضمان عمل الإضافة
+                            u_key = f"g_{i}_{idx}_{j}_{p_name.replace(' ', '_')}"
+                            
+                            qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{u_key}", label_visibility="collapsed")
+                            
+                            if st.button("أضف 🛒", key=f"b_{u_key}"):
+                                if p_name in st.session_state.cart:
+                                    st.session_state.cart[p_name]['qty'] += qty
+                                else:
+                                    st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
+                                st.toast(f"✅ تم إضافة {p_name}")
+                            st.markdown('</div>', unsafe_allow_html=True)
 
-        with t2:
-            with st.form("d_form"):
-                dn = st.text_input("اسم الموصل"); dp = st.text_input("رقم الواتساب (213...)")
-                if st.form_submit_button("إضافة موصل"):
-                    st.session_state.db["drivers"].append({"name": dn, "phone": dp, "status": "متاح"})
-                    save_db(st.session_state.db); st.rerun()
-
-        with t3:
-            if st.session_state.db["orders"]:
-                # عرض السجل كما كان سابقاً
-                df = pd.DataFrame(st.session_state.db["orders"])
-                st.table(df[::-1]) # عرض الجدول بشكل كلاسيكي مرتب
-                if st.button("🗑️ حذف السجلات"):
-                    st.session_state.db["orders"] = []; save_db(st.session_state.db); st.rerun()
-
-# --- 4. المتجر (الزبائن) ---
-else:
-    st.markdown("<h2 style='text-align:center;'>🛒 SM KHADAMATIC</h2>", unsafe_allow_html=True)
-    
-    # تصنيفات (بدون فراغ كبير)
-    cats = ["الكل"] + st.session_state.db["categories"]
-    selected_cat = st.segmented_control("التصنيف:", cats, default="الكل")
-
-    prods = st.session_state.db["products"]
-    if selected_cat != "الكل":
-        prods = [p for p in prods if p.get("cat") == selected_cat]
-
-    # Grid المنتجات
-    for i in range(0, len(prods), 3):
-        cols = st.columns(3)
-        for j, p in enumerate(prods[i:i+3]):
-            with cols[j]:
-                st.markdown('<div class="product-box">', unsafe_allow_html=True)
-                if p.get("img"):
-                    st.markdown(f'<img src="data:image/png;base64,{p["img"]}" class="product-img">', unsafe_allow_html=True)
-                st.markdown(f"**{p['name']}**")
-                st.markdown(f'<p class="price-text">{p["price"]} DA</p>', unsafe_allow_html=True)
-                qty = st.number_input("الكمية (كغ)", 0.5, 50.0, 1.0, 0.5, key=f"q_{i+j}")
-                if st.button(f"إضافة 🛒", key=f"btn_{i+j}", type="primary"):
-                    st.session_state.cart.append({"name": p['name'], "price": p['price']*qty, "qty": qty})
-                    st.toast(f"✅ تم الإضافة")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-# --- 5. السلة وتأكيد الطلب (حل مشكلة الواتساب) ---
+# --- 4. السلة ---
 if st.session_state.cart:
-    with st.sidebar:
-        st.header("🛒 طلبياتك")
-        # تجميع الطلبات المتشابهة
-        summary = {}
-        total = 0
-        for item in st.session_state.cart:
-            name = item['name']
-            summary[name] = summary.get(name, 0) + item['qty']
-            total += item['price']
-        
-        for n, q in summary.items():
-            st.write(f"• {n}: {q} كغ")
-        
-        st.markdown(f"### المجموع: {int(total)} DA")
-        
-        with st.form("checkout_form"):
-            un = st.text_input("الاسم")
-            up = st.text_input("الهاتف")
-            ua = st.text_area("العنوان")
-            drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
-            target_d = st.selectbox("اختر الموصل", [d['name'] for d in drivers]) if drivers else None
-            
-            if st.form_submit_button("إرسال الطلب ✅"):
-                if un and up and target_d:
-                    driver = next(d for d in drivers if d['name'] == target_d)
-                    items_list = " | ".join([f"{n} ({q}كغ)" for n, q in summary.items()])
-                    
-                    # حفظ في السجل
-                    st.session_state.db["orders"].append({
-                        "الزبون": un, "الهاتف": up, "الطلبات": items_list, 
-                        "المجموع": int(total), "التاريخ": datetime.now().strftime("%Y-%m-%d")
-                    })
-                    save_db(st.session_state.db)
-                    
-                    # بناء رسالة الواتساب بدقة
-                    msg = f"طلب جديد من: {un}\nالهاتف: {up}\nالعنوان: {ua}\nالطلبات: {items_list}\nالمجموع: {int(total)} DA"
-                    encoded_msg = urllib.parse.quote(msg)
-                    url = f"https://wa.me/{driver['phone']}?text={encoded_msg}"
-                    
-                    st.markdown(f'<a href="{url}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">إرسال عبر واتساب 🚚</a>', unsafe_allow_html=True)
-                    st.session_state.cart = []
-                else: st.error("يرجى ملء البيانات!")
+    st.divider()
+    st.markdown("### 🧺 المشتريات")
+    total = 0
+    items_list = []
+    
+    for name, info in list(st.session_state.cart.items()):
+        sub = info['price'] * info['qty']
+        total += sub
+        c1, c2 = st.columns([4, 1])
+        c1.write(f"• {name} ({info['qty']} كغ)")
+        if c2.button("🗑️", key=f"del_{name}"):
+            del st.session_state.cart[name]
+            st.rerun()
+        items_list.append(f"{name} ({info['qty']} كغ)")
+    
+    st.markdown(f"#### المجموع: {int(total)} دج")
+    
+    with st.expander("🚚 تأكيد الطلب"):
+        un = st.text_input("الاسم")
+        ua = st.text_input("العنوان")
+        if not drivers_df.empty:
+            dn = st.selectbox("الموصل", drivers_df.iloc[:, 0].tolist())
+            if st.button("إرسال عبر واتساب"):
+                if un and ua:
+                    ph = str(drivers_df[drivers_df.iloc[:, 0] == dn].iloc[0, 1])
+                    msg = f"طلب من: {un}\nالعنوان: {ua}\nالمشتريات: {' + '.join(items_list)}\nالمجموع: {int(total)} دج"
+                    st.markdown(f'<a href="https://wa.me/{ph}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد الإرسال</a>', unsafe_allow_html=True)
