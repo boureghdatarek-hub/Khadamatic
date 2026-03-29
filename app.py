@@ -15,10 +15,10 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px !important;
         display: flex !important;
-        overflow-x: auto !important; /* تفعيل السحب لليمين واليسار */
+        overflow-x: auto !important;
         white-space: nowrap !important;
         padding: 5px !important;
-        scrollbar-width: none; /* إخفاء شريط التمرير المزعج */
+        scrollbar-width: none;
     }
     .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
     
@@ -32,8 +32,8 @@ st.markdown("""
     /* --- توحيد حجم الصور في الشبكة --- */
     [data-testid="stImage"] img {
         width: 100% !important;
-        height: 140px !important; /* ارتفاع ثابت وموحد لكل الصور */
-        object-fit: contain !important; /* يمنع تمدد الصورة ويحافظ على أبعادها */
+        height: 140px !important;
+        object-fit: contain !important;
         background-color: white !important;
         border-radius: 10px;
     }
@@ -84,11 +84,11 @@ if not prods_df.empty:
     cat_col = 'cat' if 'cat' in prods_df.columns else prods_df.columns[2]
     cats = ["الكل"] + prods_df[cat_col].unique().tolist()
     
-    # إضافة تبويب الإدارة
-    tabs = st.tabs(cats + ["📋 الطلبات"])
+    # تم نزع تبويب الطلبات من هنا
+    tabs = st.tabs(cats)
     
     # عرض تبويبات المنتجات
-    for i, tab in enumerate(tabs[:-1]):
+    for i, tab in enumerate(tabs):
         with tab:
             current_cat = cats[i]
             df = prods_df if current_cat == "الكل" else prods_df[prods_df[cat_col] == current_cat]
@@ -104,14 +104,12 @@ if not prods_df.empty:
                         with cols[j]:
                             st.markdown('<div class="product-card">', unsafe_allow_html=True)
                             
-                            # عرض الصورة بحجم موحد
                             img_val = row.get('img')
                             if pd.notna(img_val): st.image(img_val)
                             else: st.write("📦")
                             
                             st.markdown(f"<b>{row.iloc[0]}</b><br><span style='color:green;'>{row.iloc[1]} دج</span>", unsafe_allow_html=True)
                             
-                            # مدخل الكمية والزر
                             u_key = f"key_{i}_{idx}_{j}"
                             qty = st.number_input("الكمية", 0.5, 100.0, 1.0, 0.5, key=f"q_{u_key}", label_visibility="collapsed")
                             if st.button("أضف 🛒", key=f"b_{u_key}"):
@@ -120,13 +118,6 @@ if not prods_df.empty:
                                 else: st.session_state.cart[name] = {'price': row.iloc[1], 'qty': qty}
                                 st.toast(f"تمت إضافة {name}")
                             st.markdown('</div>', unsafe_allow_html=True)
-
-    # تبويب الطلبات (الإدارة)
-    with tabs[-1]:
-        st.subheader("سجل الطلبات")
-        orders_df = load_data("orders")
-        if not orders_df.empty: st.dataframe(orders_df)
-        else: st.info("لا توجد طلبات مسجلة.")
 
 # --- 4. السلة وإرسال واتساب ---
 if st.session_state.cart:
@@ -148,4 +139,5 @@ if st.session_state.cart:
         if st.button("🚀 إرسال الطلب واتساب"):
             if u_name and u_addr:
                 msg = f"طلب جديد من {u_name}\nالعنوان: {u_addr}\nالمنتجات: {', '.join(summary)}\nالمجموع: {int(total)} دج"
+                # لا تنسَ وضع رقم الهاتف الصحيح هنا بدلاً من xxxxxxxxx
                 st.markdown(f'<a href="https://wa.me/213xxxxxxxxx?text={urllib.parse.quote(msg)}" target="_blank" style="background:green;color:white;padding:10px;text-align:center;display:block;border-radius:5px;text-decoration:none;">تأكيد الإرسال</a>', unsafe_allow_html=True)
