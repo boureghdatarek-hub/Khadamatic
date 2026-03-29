@@ -2,57 +2,48 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 
-# --- الإعدادات البصرية (أبيض ناصع) ---
+# --- 1. الإعدادات البصرية (أبيض ناصع ومنع السواد) ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
-# تم تعديل CSS لجعل العرض Grid على الهاتف
 st.markdown("""
 <style>
     .stApp { background-color: white !important; }
     h1, h2, h3, p, b, span, label { color: black !important; }
     
-    /* تنسيق كرت المنتج لتناسب عرض الـ Grid */
+    /* تنسيق كرت المنتج Grid */
     .product-card {
         background: white;
-        padding: 8px;
-        border-radius: 10px;
+        padding: 10px;
+        border-radius: 12px;
         border: 1px solid #eee;
         text-align: center;
-        margin-bottom: 8px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     
-    /* تصغير حجم الصور قليلاً لتناسب الشبكة */
-    .stImage > img { max-height: 100px; object-fit: contain; }
-    
-    /* تنسيق الأزرار (بدون تغيير) */
+    /* الأزرار (أبيض + أخضر) */
     button, [data-testid="stBaseButton-secondary"] {
         background-color: white !important;
         color: #006341 !important;
         border: 2px solid #006341 !important;
         border-radius: 20px !important;
         width: 100% !important;
+        font-weight: bold !important;
     }
     
-    input, [data-baseweb="input"], [data-baseweb="select"] {
+    /* إصلاح خانات الإدخال للهاتف */
+    input, [data-baseweb="input"] {
         background-color: #f0f2f6 !important;
         color: black !important;
         -webkit-text-fill-color: black !important;
     }
-    
-    /* جعل تصنيفات الأقسام مرنة على الهاتف */
-    .stTabs [data-baseweb="tab-list"] { gap: 5px; }
-    .stTabs [data-baseweb="tab"] { padding: 5px 10px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- جلب البيانات (بدون تغيير) ---
+# --- 2. جلب البيانات ---
 SHEET_ID = "15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk"
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=5)
 def load_data(sheet_name):
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
     try:
@@ -66,12 +57,12 @@ drivers_df = load_data("drivers")
 
 if 'cart' not in st.session_state: st.session_state.cart = {}
 
+# --- 3. الواجهة الرئيسية ---
 st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
 
 if not prods_df.empty:
     search = st.text_input("", placeholder="🔍 ابحث هنا...", label_visibility="collapsed")
     
-    # تحديد عمود التصنيف
     cat_col = 'cat' if 'cat' in prods_df.columns else prods_df.columns[2]
     cats = ["الكل"] + prods_df[cat_col].unique().tolist()
     tabs = st.tabs(cats)
@@ -81,63 +72,46 @@ if not prods_df.empty:
             current_cat = cats[i]
             df = prods_df if current_cat == "الكل" else prods_df[prods_df[cat_col] == current_cat]
             if search:
-                # تصفية البحث حسب اسم المنتج (العمود الأول)
-                df = df[df[df.columns[0]].str.contains(search, case=False, na=False)]
+                df = df[df[df.columns[0]].astype(str).str.contains(search, case=False, na=False)]
             
-            # --- عرض المنتجات بنظام Grid (2 في السطر) ---
-            # نستخدم columns(2) لضمان بقاء الشبكة ثابتة على الهاتف
+            # عرض الشبكة (Grid)
             for idx in range(0, len(df), 2):
                 cols = st.columns(2)
-                
-                # المنتج الأول في الصف
-                with cols[0]:
-                    if idx < len(df):
-                        row = df.iloc[idx]
-                        p_name = row.iloc[0]
+                for j in range(2):
+                    if (idx + j) < len(df):
+                        row = df.iloc[idx + j]
+                        p_name = str(row.iloc[0])
                         p_price = row.iloc[1]
                         
-                        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-                        # عرض الصورة
-                        img_val = row.get('img') if 'img' in df.columns else None
-                        if pd.notna(img_val) and str(img_val).startswith("http"):
-                            st.image(img_val)
-                        else:
-                            st.markdown("<h2 style='margin:0;'>📦</h2>", unsafe_allow_html=True)
-                        
-                        st.markdown(f"<b>{p_name}</b>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='color:green;'>{p_price} دج</p>", unsafe_allow_html=True)
-                        
-                        qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{idx}_0", label_visibility="collapsed")
-                        if st.button("أضف 🛒", key=f"btn_{idx}_0"):
-                            st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
-                            st.toast(f"✅ تم إضافة {p_name}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                
-                # المنتج الثاني في الصف
-                with cols[1]:
-                    if (idx + 1) < len(df):
-                        row = df.iloc[idx + 1]
-                        p_name = row.iloc[0]
-                        p_price = row.iloc[1]
-                        
-                        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-                        # عرض الصورة
-                        img_val = row.get('img') if 'img' in df.columns else None
-                        if pd.notna(img_val) and str(img_val).startswith("http"):
-                            st.image(img_val)
-                        else:
-                            st.markdown("<h2 style='margin:0;'>📦</h2>", unsafe_allow_html=True)
-                        
-                        st.markdown(f"<b>{p_name}</b>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='color:green;'>{p_price} دج</p>", unsafe_allow_html=True)
-                        
-                        qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{idx}_1", label_visibility="collapsed")
-                        if st.button("أضف 🛒", key=f"btn_{idx}_1"):
-                            st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
-                            st.toast(f"✅ تم إضافة {p_name}")
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        with cols[j]:
+                            st.markdown('<div class="product-card">', unsafe_allow_html=True)
+                            
+                            # الصورة
+                            img_val = row.get('img') if 'img' in df.columns else None
+                            if pd.notna(img_val) and str(img_val).startswith("http"):
+                                st.image(img_val, use_container_width=True)
+                            else:
+                                st.markdown("<h2 style='margin:0;'>📦</h2>", unsafe_allow_html=True)
+                            
+                            st.markdown(f"<b>{p_name}</b>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='color:green;'>{p_price} دج</p>", unsafe_allow_html=True)
+                            
+                            # --- حل مشكلة Duplicate Key الصارم ---
+                            # المفتاح يجمع (اسم التبويب + مكان الصف + مكان العمود + اسم المنتج)
+                            unique_id = f"{i}_{idx}_{j}_{p_name}"
+                            
+                            qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{unique_id}", label_visibility="collapsed")
+                            
+                            if st.button("أضف 🛒", key=f"btn_{unique_id}"):
+                                if p_name in st.session_state.cart:
+                                    st.session_state.cart[p_name]['qty'] += qty
+                                else:
+                                    st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
+                                st.toast(f"✅ تم إضافة {p_name}")
+                                # نزيل st.rerun() هنا لتجنب وميض الصفحة المزعج في الهاتف
+                            st.markdown('</div>', unsafe_allow_html=True)
 
-# --- عرض السلة والموصلين (بدون تغيير) ---
+# --- 4. السلة والموصلين (بدون تغيير) ---
 if st.session_state.cart:
     st.divider()
     st.markdown("### 🧺 طلبيتك")
@@ -150,7 +124,8 @@ if st.session_state.cart:
         c1, c2 = st.columns([4, 1])
         c1.write(f"• {name} ({info['qty']} كغ) = {int(sub)} دج")
         if c2.button("🗑️", key=f"del_{name}"):
-            del st.session_state.cart[name]; st.rerun()
+            del st.session_state.cart[name]
+            st.rerun()
         items_summary.append(f"{name} ({info['qty']} كغ)")
     
     st.markdown(f"#### المجموع: {int(total)} دج")
@@ -158,17 +133,12 @@ if st.session_state.cart:
     with st.expander("🚚 إتمام الطلب", expanded=True):
         u_name = st.text_input("الاسم الكامل")
         u_addr = st.text_input("العنوان")
-        
         if not drivers_df.empty:
             d_names = drivers_df.iloc[:, 0].tolist()
             sel_d = st.selectbox("اختر الموصل", d_names)
-            
             if st.button("إرسال عبر واتساب 🚀"):
                 if u_name and u_addr:
-                    # جلب رقم هاتف الموصل
                     row_d = drivers_df[drivers_df.iloc[:, 0] == sel_d]
                     phone = str(row_d.iloc[0, 1])
                     msg = f"طلب من: {u_name}\nالعنوان: {u_addr}\nالمنتجات: {' + '.join(items_summary)}\nالمجموع: {int(total)} دج"
                     st.markdown(f'<a href="https://wa.me/{phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد الإرسال</a>', unsafe_allow_html=True)
-                else:
-                    st.error("يرجى ملء الاسم والعنوان")
