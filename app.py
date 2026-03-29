@@ -5,87 +5,111 @@ import urllib.parse
 # --- إعدادات الصفحة ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
-# رابط الجدول (تأكد أنه Public - Anyone with link can view)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk/export?format=csv"
+# الرابط المباشر للجدول بصيغة CSV لضمان استقرار القراءة
+SHEET_BASE = "https://docs.google.com/spreadsheets/d/15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk/gviz/tq?tqx=out:csv"
 
-# دالة لقراءة البيانات وتحويلها لروابط CSV مباشرة (أسرع وأضمن)
-def get_data(gid):
-    url = f"{SHEET_URL}&gid={gid}"
-    return pd.read_csv(url)
+def load_sheet(sheet_name):
+    try:
+        url = f"{SHEET_BASE}&sheet={sheet_name}"
+        return pd.read_csv(url)
+    except:
+        return pd.DataFrame()
 
-# معرفات الصفحات (GIDs) - عادة أول صفحة هي 0
-# يمكنك معرفة الـ gid من رابط الصفحة في المتصفح
-PRODS_GID = "0" 
-DRIVERS_GID = "1972620703" # مثال: ستحده في الرابط عند فتح صفحة الموصلين
-
-st.markdown("""
-<style>
-    .stApp { background-color: #f4f4f4; }
-    .prod-card { background: white; padding: 15px; border-radius: 15px; border: 1px solid #ddd; text-align: center; margin-bottom: 15px; }
-    .price { color: #006341; font-weight: bold; font-size: 20px; }
-</style>
-""", unsafe_allow_html=True)
+# تحميل البيانات
+prods_df = load_sheet("products")
+drivers_df = load_sheet("drivers")
 
 if 'cart' not in st.session_state: st.session_state.cart = {}
 
-# --- تحميل البيانات ---
-try:
-    # القراءة من صفحة المنتجات (نستخدم الرابط المباشر للـ CSV لضمان العمل)
-    prods_df = pd.read_csv("https://docs.google.com/spreadsheets/d/15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk/gviz/tq?tqx=out:csv&sheet=products")
-    drivers_df = pd.read_csv("https://docs.google.com/spreadsheets/d/15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk/gviz/tq?tqx=out:csv&sheet=drivers")
-except:
-    st.error("يرجى التأكد من إضافة بيانات في جدول جوجل (products و drivers)")
-    st.stop()
+st.markdown("""
+<style>
+    .stApp { background-color: #f8f9fa; }
+    .product-box { background: white; padding: 20px; border-radius: 20px; border: 1px solid #eee; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+    .price-tag { color: #006341; font-weight: bold; font-size: 1.4rem; margin: 10px 0; }
+    .stButton > button { border-radius: 30px !important; border: 2px solid #006341 !important; color: #006341 !important; font-weight: bold !important; }
+    .stButton > button:hover { background-color: #006341 !important; color: white !important; }
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
 
-col_main, col_cart = st.columns([3, 1.8])
+# التحقق من وجود بيانات
+if prods_df.empty:
+    st.warning("⚠️ يرجى التأكد من إضافة منتجات في صفحة 'products' بجدول جوجل.")
+    st.stop()
+
+col_main, col_cart = st.columns([3, 1.5])
 
 with col_main:
-    # عرض التصنيفات
-    cats = ["الكل"] + prods_df['cat'].unique().tolist()
-    sel_cat = st.tabs(cats)
+    # فلترة التصنيفات
+    all_cats = ["الكل"] + (prods_df['cat'].unique().tolist() if 'cat' in prods_df.columns else [])
+    tabs = st.tabs(all_cats)
     
-    for i, tab in enumerate(sel_cat):
+    for i, tab in enumerate(tabs):
         with tab:
-            filtered = prods_df if cats[i] == "الكل" else prods_df[prods_df['cat'] == cats[i]]
+            current_cat = all_cats[i]
+            filtered = prods_df if current_cat == "الكل" else prods_df[prods_df['cat'] == current_cat]
             
-            for idx, row in filtered.iterrows():
-                with st.container():
-                    c1, c2, c3 = st.columns([1, 2, 1])
-                    # عرض الصورة (إذا كان هناك رابط أو نص)
-                    if not pd.isna(row['img']): 
-                        c1.image(row['img'], width=80) 
-                    c2.write(f"### {row['name']}")
-                    c2.write(f"السعر: {row['price']} دج")
-                    q = c3.number_input("كغ", 0.5, 20.0, 1.0, 0.5, key=f"in_{idx}")
-                    if c3.button("أضف 🛒", key=f"btn_{idx}"):
-                        if row['name'] in st.session_state.cart:
-                            st.session_state.cart[row['name']]['qty'] += q
+            # عرض المنتجات في شبكة (Grid)
+            for idx in range(0, len(filtered), 3):
+                cols = st.columns(3)
+                for j, (_, row) in enumerate(filtered.iloc[idx:idx+3].iterrows()):
+                    with cols[j]:
+                        st.markdown('<div class="product-box">', unsafe_allow_html=True)
+                        
+                        # محاولة عرض الصورة أو وضع أيقونة بديلة
+                        img_url = row['img'] if not pd.isna(row.get('img')) else ""
+                        if img_url and str(img_url).startswith("http"):
+                            st.image(img_url, use_container_width=True)
                         else:
-                            st.session_state.cart[row['name']] = {'price': row['price'], 'qty': q}
-                        st.rerun()
-                st.divider()
+                            st.markdown("<h1 style='font-size:80px;'>📦</h1>", unsafe_allow_html=True)
+                        
+                        st.subheader(row['name'])
+                        st.markdown(f'<p class="price-tag">{row["price"]} دج</p>', unsafe_allow_html=True)
+                        
+                        q = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{row['name']}_{idx+j}")
+                        if st.button("إضافة 🛒", key=f"btn_{row['name']}_{idx+j}"):
+                            if row['name'] in st.session_state.cart:
+                                st.session_state.cart[row['name']]['qty'] += q
+                            else:
+                                st.session_state.cart[row['name']] = {'price': row['price'], 'qty': q}
+                            st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
 
 with col_cart:
-    st.subheader("🧺 سلة المشتريات")
+    st.markdown("### 🧺 سلتك")
     total = 0
-    items_list = []
-    for name, info in list(st.session_state.cart.items()):
-        sub = info['price'] * info['qty']
-        total += sub
-        st.write(f"**{name}** ({info['qty']} كغ) = {int(sub)} دج")
-        items_list.append(f"{name} ({info['qty']} كغ)")
-        if st.button("حذف", key=f"del_{name}"):
-            del st.session_state.cart[name]; st.rerun()
-            
-    if total > 0:
+    items_to_send = []
+    
+    if not st.session_state.cart:
+        st.info("السلة فارغة حالياً")
+    else:
+        for name, info in list(st.session_state.cart.items()):
+            subtotal = info['price'] * info['qty']
+            total += subtotal
+            c1, c2 = st.columns([4, 1])
+            c1.write(f"**{name}**\n{info['qty']} كغ = {int(subtotal)} دج")
+            if c2.button("❌", key=f"del_{name}"):
+                del st.session_state.cart[name]; st.rerun()
+            items_to_send.append(f"{name} ({info['qty']} كغ)")
+            st.divider()
+        
         st.markdown(f"## المجموع: {int(total)} دج")
-        with st.form("checkout"):
-            u_name = st.text_input("الاسم")
-            u_addr = st.text_input("العنوان")
-            sel_d = st.selectbox("اختر الموصل", drivers_df['name'].tolist())
-            if st.form_submit_button("إرسال الطلب عبر واتساب"):
-                d_phone = drivers_df[drivers_df['name'] == sel_d]['phone'].iloc[0]
-                msg = f"طلب جديد من: {u_name}\nالعنوان: {u_addr}\nالمشتريات: {' + '.join(items_list)}\nالمجموع: {int(total)} دج"
-                st.markdown(f'<a href="https://wa.me/{d_phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">🚀 تأكيد الإرسال للواتساب</a>', unsafe_allow_html=True)
+        
+        with st.form("checkout_form"):
+            u_name = st.text_input("الاسم الكامل")
+            u_addr = st.text_input("العنوان (الحي/المدينة)")
+            
+            # اختيار الموصل من الجدول
+            d_names = drivers_df['name'].tolist() if not drivers_df.empty else []
+            sel_d = st.selectbox("اختر موصل التوصيل", d_names) if d_names else None
+            
+            if st.form_submit_button("✅ إتمام الطلب"):
+                if u_name and u_addr and sel_d:
+                    d_phone = drivers_df[drivers_df['name'] == sel_d]['phone'].iloc[0]
+                    msg = f"السلام عليكم، طلب جديد:\n\n👤 الزبون: {u_name}\n📍 العنوان: {u_addr}\n🛍️ المشتريات: {' + '.join(items_to_send)}\n💰 المجموع: {int(total)} دج"
+                    
+                    st.success("تم تجهيز رسالتك!")
+                    st.markdown(f'<a href="https://wa.me/{d_phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:15px;border-radius:15px;text-decoration:none;font-weight:bold;font-size:1.1rem;">🚀 اضغط هنا للإرسال عبر واتساب</a>', unsafe_allow_html=True)
+                else:
+                    st.error("يرجى إدخال كافة البيانات واختيار الموصل")
