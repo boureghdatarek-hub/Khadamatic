@@ -2,26 +2,23 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 
-# 1. إعدادات الصفحة وإجبار الألوان الفاتحة (Light Mode)
+# 1. Force Light Mode and Mobile Fixes
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
 <style>
-    /* إجبار الخلفية البيضاء في كل مكان */
-    .stApp { background-color: white !important; }
+    .stApp { background-color: white !important; color: black !important; }
+    [data-testid="stHeader"] { background: rgba(0,0,0,0); }
     
-    /* تنسيق الخانات لتظهر بيضاء في الهاتف */
-    input, div[data-baseweb="input"], div[data-baseweb="select"] {
+    /* Input field visibility for mobile */
+    input, div[data-baseweb="input"], div[data-baseweb="select"], .stSelectbox {
         background-color: #f0f2f6 !important;
         color: black !important;
+        border-radius: 10px !important;
     }
     
-    /* تصحيح لون النصوص في الهاتف */
-    h1, h2, h3, p, span, label, .stMarkdown {
-        color: black !important;
-    }
-
-    /* تنسيق كرت المنتج */
+    h1, h2, h3, p, span, label { color: black !important; }
+    
     .product-card {
         background: #ffffff;
         padding: 10px;
@@ -31,15 +28,14 @@ st.markdown("""
         margin-bottom: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    
-    .price-tag { color: #006341; font-weight: bold; font-size: 1.1rem; }
+    .price-tag { color: #006341; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. جلب البيانات
+# 2. Data Connection
 SHEET_ID = "15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk"
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def get_data(sheet_name):
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
     try:
@@ -50,80 +46,104 @@ def get_data(sheet_name):
 prods_df = get_data("products")
 drivers_df = get_data("drivers")
 
-# تهيئة السلة
+# --- CRITICAL: Initialize Cart State ---
 if 'cart' not in st.session_state:
     st.session_state.cart = {}
 
 st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
 
-# 3. عرض المنتجات بشكل صحيح
+# 3. Product Display
 if not prods_df.empty:
-    search = st.text_input("🔍 ابحث عن منتج...", key="main_search")
+    search = st.text_input("🔍 البحث", placeholder="ابحث عن منتج...", key="search_bar")
     
-    cats = ["الكل"] + prods_df['cat'].unique().tolist()
-    selected_cat = st.selectbox("اختر القسم", cats, key="cat_selector")
-    
-    filtered = prods_df if selected_cat == "الكل" else prods_df[prods_df['cat'] == selected_cat]
+    # Filter products
+    filtered = prods_df.copy()
     if search:
         filtered = filtered[filtered['name'].str.contains(search, case=False, na=False)]
 
-    # عرض المنتجات في شبكة (Grid)
+    # Grid Display (2 per row for mobile)
     for idx in range(0, len(filtered), 2):
         cols = st.columns(2)
         for j, (_, row) in enumerate(filtered.iloc[idx:idx+2].iterrows()):
             with cols[j]:
                 st.markdown('<div class="product-card">', unsafe_allow_html=True)
                 
-                # عرض الصورة
-                if not pd.isna(row.get('img')) and str(row['img']).startswith("http"):
-                    st.image(row['img'], use_container_width=True)
+                # Image
+                img_url = row['img'] if not pd.isna(row.get('img')) else ""
+                if img_url and str(img_url).startswith("http"):
+                    st.image(img_url, use_container_width=True)
                 
                 st.write(f"**{row['name']}**")
                 st.markdown(f'<p class="price-tag">{row["price"]} دج</p>', unsafe_allow_html=True)
                 
-                # --- حل مشكلة الإضافة: مفتاح فريد لكل منتج ---
-                prod_key = f"{row['name']}_{idx}_{j}"
-                q = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{prod_key}")
+                # Quantity & Add Button
+                # We use a very specific key to avoid conflicts
+                unique_id = f"{row['name']}_{idx}_{j}".replace(" ", "_")
                 
-                if st.button("🛒 أضف للسلة", key=f"btn_{prod_key}"):
-                    # تحديث السلة في الـ Session State
-                    st.session_state.cart[row['name']] = {'price': row['price'], 'qty': q}
-                    st.success(f"تم إضافة {row['name']}")
-                    st.rerun() # تحديث الصفحة فوراً لإظهار السلة
+                qty = st.number_input("الكمية", 0.5, 100.0, 1.0, 0.5, key=f"qty_{unique_id}")
+                
+                if st.button("🛒 أضف", key=f"btn_{unique_id}"):
+                    # Update dictionary instead of replacing it
+                    item_name = row['name']
+                    item_price = float(row['price'])
+                    
+                    if item_name in st.session_state.cart:
+                        st.session_state.cart[item_name]['qty'] += qty
+                    else:
+                        st.session_state.cart[item_name] = {'price': item_price, 'qty': qty}
+                    
+                    st.success(f"تم إضافة {item_name}")
+                    st.rerun()
                 
                 st.markdown('</div>', unsafe_allow_html=True)
 
-# 4. سلة المشتريات (تظهر في الأسفل)
+# 4. Shopping Cart Summary
 if st.session_state.cart:
-    st.markdown("---")
-    st.header("🧺 سلتك الحالية")
-    total = 0
-    items_list = []
+    st.divider()
+    st.subheader("🧺 سلتك الحالية")
     
-    for name, info in list(st.session_state.cart.items()):
-        subtotal = info['price'] * info['qty']
-        total += subtotal
+    grand_total = 0
+    order_items = []
+    
+    # Use a list to iterate to allow deletion
+    for name, details in list(st.session_state.cart.items()):
+        line_total = details['price'] * details['qty']
+        grand_total += line_total
+        
         c1, c2 = st.columns([4, 1])
-        c1.write(f"✅ {name} ({info['qty']} كغ) = {int(subtotal)} دج")
+        c1.write(f"**{name}**: {details['qty']} وحدة = {int(line_total)} دج")
+        
         if c2.button("❌", key=f"del_{name}"):
             del st.session_state.cart[name]
             st.rerun()
-        items_list.append(f"{name} ({info['qty']} كغ)")
+            
+        order_items.append(f"{name} ({details['qty']})")
 
-    st.subheader(f"المجموع النهائي: {int(total)} دج")
+    st.markdown(f"### المجموع: {int(grand_total)} دج")
     
-    # نموذج إرسال الطلب
+    # 5. WhatsApp Checkout Form
     with st.form("checkout_form"):
         u_name = st.text_input("الاسم الكامل")
-        u_addr = st.text_input("عنوان التوصيل")
-        d_names = drivers_df['name'].tolist() if not drivers_df.empty else ["عام"]
-        sel_d = st.selectbox("اختر الموصل", d_names)
+        u_addr = st.text_input("العنوان بالتفصيل")
         
-        if st.form_submit_button("إرسال الطلب عبر واتساب"):
+        d_options = drivers_df['name'].tolist() if not drivers_df.empty else ["توصيل افتراضي"]
+        sel_driver = st.selectbox("اختر الموصل", d_options)
+        
+        if st.form_submit_button("إرسال الطلب عبر واتساب ✅"):
             if u_name and u_addr:
-                phone = drivers_df[drivers_df['name']==sel_d]['phone'].iloc[0] if not drivers_df.empty else "213"
-                msg = f"طلب من: {u_name}\nالعنوان: {u_addr}\nالمنتجات: {' + '.join(items_list)}\nالمجموع: {int(total)} دج"
-                whatsapp_url = f"https://wa.me/{phone}?text={urllib.parse.quote(msg)}"
-                st.markdown(f'<a href="{whatsapp_url}" target="_blank" style="background:green;color:white;padding:15px;display:block;text-align:center;border-radius:10px;text-decoration:none;">إضغط هنا لفتح واتساب</a>', unsafe_allow_html=True)
+                # Get driver phone
+                try:
+                    d_phone = drivers_df[drivers_df['name'] == sel_driver]['phone'].iloc[0]
+                except:
+                    d_phone = "213" # Fallback
+
+                msg = (f"طلب جديد:\n"
+                       f"👤 الزبون: {u_name}\n"
+                       f"📍 العنوان: {u_addr}\n"
+                       f"🛍️ المشتريات: {' + '.join(order_items)}\n"
+                       f"💰 المجموع: {int(grand_total)} دج")
+                
+                whatsapp_link = f"https://wa.me/{d_phone}?text={urllib.parse.quote(msg)}"
+                st.markdown(f'<a href="{whatsapp_link}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:15px;border-radius:10px;text-decoration:none;font-weight:bold;">🚀 اضغط هنا لفتح الواتساب</a>', unsafe_allow_html=True)
             else:
-                st.error("يرجى ملء الاسم والعنوان")
+                st.error("يرجى إكمال البيانات")
