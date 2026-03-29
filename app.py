@@ -50,7 +50,6 @@ def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# تهيئة بيانات الجلسة
 if 'db' not in st.session_state:
     st.session_state.db = load_db()
 if 'cart' not in st.session_state:
@@ -59,39 +58,35 @@ if 'selected_cat' not in st.session_state:
     st.session_state.selected_cat = "الكل"
 
 # --- 3. تحديد الصلاحيات (الرابط السري) ---
-# سيعمل وضع الإدارة فقط إذا كان الرابط يحتوي على ?admin=true
 is_admin_link = st.query_params.get("admin") == "true"
 
 # --- 4. لوحة التحكم (Admin) ---
 if is_admin_link:
     st.sidebar.title("🔐 دخول الإدارة")
-    pwd = st.sidebar.text_input("كلمة المرor", type="password")
+    pwd = st.sidebar.text_input("كلمة المرور", type="password")
     
     if pwd == "tarek2026":
         st.title("⚙️ لوحة التحكم - SM KHADAMATIC")
-        tabs = st.tabs(["📦 المنتجات", "🚚 الموصلين", "👥 البائعين", "📊 السجلات"])
+        tabs = st.tabs(["📦 المنتجات", "🚚 الموصلين", "📊 السجلات"])
 
         with tabs[0]: # المنتجات
             st.subheader("إضافة منتج")
-            with st.form("add_p"):
+            with st.form("add_p", clear_on_submit=True):
                 n = st.text_input("اسم المنتج")
                 p = st.number_input("السعر للكيلو", 0)
                 cat = st.selectbox("التصنيف", st.session_state.db["categories"])
                 img_file = st.file_uploader("الصورة", type=['png','jpg','jpeg'])
                 if st.form_submit_button("حفظ ✅"):
                     img_data = base64.b64encode(img_file.read()).decode() if img_file else ""
-                    st.session_state.db["products"].append({"name": n, "price": p, "cat": cat, "img": img_data, "seller": ""})
-                    save_db(st.session_state.db)
-                    st.rerun()
+                    st.session_state.db["products"].append({"name": n, "price": p, "cat": cat, "img": img_data})
+                    save_db(st.session_state.db); st.rerun()
             
             for i, pr in enumerate(st.session_state.db["products"]):
                 c1, c2, c3 = st.columns([1, 4, 1])
                 if pr.get("img"): c1.image(base64.b64decode(pr["img"]), width=50)
                 c2.write(f"**{pr['name']}** - {pr['price']} دج")
                 if c3.button("🗑️", key=f"del_{i}"):
-                    st.session_state.db["products"].pop(i)
-                    save_db(st.session_state.db)
-                    st.rerun()
+                    st.session_state.db["products"].pop(i); save_db(st.session_state.db); st.rerun()
 
         with tabs[1]: # الموصلين
             st.subheader("إدارة الموصلين")
@@ -100,36 +95,29 @@ if is_admin_link:
                 dp = st.text_input("رقم الهاتف (213...)")
                 if st.form_submit_button("إضافة 🚚"):
                     st.session_state.db["drivers"].append({"name": dn, "phone": dp, "status": "متاح"})
-                    save_db(st.session_state.db)
-                    st.rerun()
+                    save_db(st.session_state.db); st.rerun()
             for i, d in enumerate(st.session_state.db["drivers"]):
-                st.write(f"🚚 {d['name']} ({d['status']})")
+                st.write(f"🚚 {d['name']} - {d['phone']} ({d['status']})")
                 if st.button(f"تغيير الحالة لـ {d['name']}", key=f"stat_{i}"):
                     st.session_state.db["drivers"][i]["status"] = "مشغول" if d['status'] == "متاح" else "متاح"
-                    save_db(st.session_state.db)
-                    st.rerun()
+                    save_db(st.session_state.db); st.rerun()
 
-        with tabs[3]: # السجلات
+        with tabs[2]: # السجلات
             if st.session_state.db["orders"]:
-                st.dataframe(pd.DataFrame(st.session_state.db["orders"]))
+                st.dataframe(pd.DataFrame(st.session_state.db["orders"]), use_container_width=True)
                 if st.button("🗑️ مسح السجل"):
-                    st.session_state.db["orders"] = []
-                    save_db(st.session_state.db)
-                    st.rerun()
+                    st.session_state.db["orders"] = []; save_db(st.session_state.db); st.rerun()
 
-# --- 5. واجهة الزبائن (تظهر دائماً) ---
-# إذا لم يكن في وضع الإدارة أو كلمة السر خطأ، تظهر واجهة المحل فقط
+# --- 5. واجهة الزبائن ---
 if not is_admin_link or (is_admin_link and pwd != "tarek2026"):
     st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
     
-    # الفلترة والبحث
-    search_q = st.text_input("🔍 ابحث عن منتج...", "").lower()
+    # أزرار التصنيفات
     cat_list = ["الكل"] + st.session_state.db["categories"]
-    c_btns = st.columns(len(cat_list))
+    cols_cat = st.columns(len(cat_list))
     for i, cat in enumerate(cat_list):
-        if c_btns[i].button(cat, use_container_width=True):
-            st.session_state.selected_cat = cat
-            st.rerun()
+        if cols_cat[i].button(cat, use_container_width=True):
+            st.session_state.selected_cat = cat; st.rerun()
 
     st.divider()
     col_main, col_cart = st.columns([3, 1.8]) 
@@ -138,8 +126,6 @@ if not is_admin_link or (is_admin_link and pwd != "tarek2026"):
         prods = st.session_state.db["products"]
         if st.session_state.selected_cat != "الكل": 
             prods = [p for p in prods if p.get("cat") == st.session_state.selected_cat]
-        if search_q:
-            prods = [p for p in prods if search_q in p['name'].lower()]
 
         for i in range(0, len(prods), 3):
             grid = st.columns(3)
@@ -159,28 +145,48 @@ if not is_admin_link or (is_admin_link and pwd != "tarek2026"):
     with col_cart:
         st.subheader("🛒 سلتك")
         total = 0
+        item_details = []
         if not st.session_state.cart:
             st.info("السلة فارغة")
         else:
-            for item in st.session_state.cart:
-                st.write(f"**{item['name']}**: {item['qty']} كغ")
+            # عرض وتجميع المنتجات في السلة
+            for i, item in enumerate(st.session_state.cart):
+                c1, c2 = st.columns([3, 1])
+                c1.write(f"**{item['name']}** ({item['qty']} كغ)")
+                if c2.button("❌", key=f"rm_{i}"):
+                    st.session_state.cart.pop(i); st.rerun()
                 total += item['price']
+                item_details.append(f"{item['name']} ({item['qty']} كغ)")
             
             st.write(f"### المجموع: {int(total)} دج")
+            
             with st.form("order"):
                 u_name = st.text_input("الاسم")
                 u_phone = st.text_input("الهاتف")
+                u_addr = st.text_area("العنوان")
                 drivers = [d for d in st.session_state.db["drivers"] if d["status"] == "متاح"]
                 d_names = [d['name'] for d in drivers]
                 sel_d = st.selectbox("الموصل", d_names) if drivers else "لا يوجد موصل"
                 
-                if st.form_submit_button("إرسال الطلب"):
+                if st.form_submit_button("✅ إرسال الطلب"):
                     if u_name and u_phone and drivers:
                         d_info = next(d for d in drivers if d["name"] == sel_d)
+                        products_text = " + ".join(item_details)
+                        
+                        # حفظ في السجل
                         st.session_state.db["orders"].append({
-                            "name": u_name, "phone": u_phone, "total": int(total), 
-                            "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                            "الزبون": u_name, "الهاتف": u_phone, "العنوان": u_addr,
+                            "المنتجات": products_text, "المجموع": int(total), 
+                            "التاريخ": datetime.now().strftime("%Y-%m-%d %H:%M")
                         })
                         save_db(st.session_state.db)
-                        msg = f"طلب جديد من {u_name} بمجموع {int(total)} دج"
-                        st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">واتساب الموصل 🚚</a>', unsafe_allow_html=True)
+                        
+                        # تجهيز رسالة الواتساب الكاملة
+                        msg = f"السلام عليكم، طلب جديد من: {u_name}\n📱 الهاتف: {u_phone}\n📍 العنوان: {u_addr}\n🛍️ المشتريات: {products_text}\n💰 المجموع: {int(total)} دج"
+                        encoded_msg = urllib.parse.quote(msg)
+                        
+                        st.success("تم تسجيل طلبك!")
+                        st.markdown(f'<a href="https://wa.me/{d_info["phone"]}?text={encoded_msg}" target="_blank" style="background:#006341;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">إرسال للواتساب 🚚</a>', unsafe_allow_html=True)
+                        st.session_state.cart = []
+                    else:
+                        st.error("يرجى ملء البيانات وتوفر موصل متاح")
