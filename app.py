@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 
-# --- 1. إعدادات المظهر وإصلاح شريط الأقسام للهاتف ---
+# --- 1. إعدادات الصفحة وتنسيق Grid صارم للهاتف ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
@@ -10,31 +10,12 @@ st.markdown("""
     .stApp { background-color: white !important; }
     h1, h2, h3, p, b, span, label { color: black !important; }
     
-    /* --- إصلاح شريط الأقسام (Categories) في الهاتف --- */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px !important;
-        display: flex !important;
-        overflow-x: auto !important; /* السماح بالسحب لليمين واليسار */
-        white-space: nowrap !important;
-        padding-bottom: 5px !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #f0f2f6 !important;
-        border-radius: 10px !important;
-        padding: 8px 15px !important;
-        color: black !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #006341 !important;
-        color: white !important;
-    }
-
-    /* --- إجبار نظام الـ Grid على العمل --- */
+    /* إجبار النظام على عرض منتجين بجانب بعضهما في الهاتف */
     [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 6px !important;
+        gap: 5px !important;
     }
     [data-testid="column"] {
         width: 50% !important;
@@ -42,24 +23,35 @@ st.markdown("""
         min-width: 0px !important;
     }
 
+    /* تحسين كرت المنتج ليكون أصغر وأكثر تناسقاً */
     .product-card {
         background: white;
-        padding: 6px;
+        padding: 5px;
         border-radius: 10px;
         border: 1px solid #f0f0f0;
         text-align: center;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* الأزرار وخانات الإدخال */
+    /* ضبط أحجام الخطوط لتناسب المساحة الصغيرة */
+    .p-title { font-size: 13px !important; margin-bottom: 2px !important; font-weight: bold; }
+    .p-price { font-size: 12px !important; color: green; margin-bottom: 5px !important; }
+
+    /* تنسيق الأزرار لتكون نحيفة وتظهر كاملة */
     button, [data-testid="stBaseButton-secondary"] {
         background-color: white !important;
         color: #006341 !important;
-        border: 2px solid #006341 !important;
+        border: 1.5px solid #006341 !important;
         border-radius: 15px !important;
-        height: 32px !important;
-        font-size: 13px !important;
+        width: 100% !important;
+        height: 30px !important;
+        padding: 0px !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
     }
+    
+    /* منع ظهور السواد في خانات الإدخال */
     input { background-color: #f8f9fa !important; color: black !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -80,14 +72,12 @@ if 'cart' not in st.session_state: st.session_state.cart = {}
 
 st.markdown("<h2 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h2>", unsafe_allow_html=True)
 
-# --- 3. عرض الأقسام والمنتجات ---
+# --- 3. عرض المنتجات (Grid 2x2) ---
 if not prods_df.empty:
     search = st.text_input("", placeholder="🔍 ابحث هنا...", label_visibility="collapsed")
     
-    # تحديد عمود الأقسام
     cat_col = 'cat' if 'cat' in prods_df.columns else prods_df.columns[2]
     cats = ["الكل"] + prods_df[cat_col].unique().tolist()
-    
     tabs = st.tabs(cats)
     
     for i, tab in enumerate(tabs):
@@ -97,7 +87,7 @@ if not prods_df.empty:
             if search:
                 df = df[df[df.columns[0]].astype(str).str.contains(search, case=False, na=False)]
             
-            # عرض الشبكة
+            # بناء الشبكة
             for idx in range(0, len(df), 2):
                 cols = st.columns(2)
                 for j in range(2):
@@ -109,17 +99,18 @@ if not prods_df.empty:
                         with cols[j]:
                             st.markdown('<div class="product-card">', unsafe_allow_html=True)
                             
+                            # الصورة مصغرة
                             img_val = row.get('img') if 'img' in df.columns else None
                             if pd.notna(img_val) and str(img_val).startswith("http"):
                                 st.image(img_val, use_container_width=True)
                             else:
                                 st.markdown("<h4>📦</h4>", unsafe_allow_html=True)
                             
-                            st.markdown(f'<p style="font-size:13px; font-weight:bold; margin:0;">{p_name}</p>', unsafe_allow_html=True)
-                            st.markdown(f'<p style="color:green; font-size:12px; margin:0;">{p_price} دج</p>', unsafe_allow_html=True)
+                            st.markdown(f'<p class="p-title">{p_name}</p>', unsafe_allow_html=True)
+                            st.markdown(f'<p class="p-price">{p_price} دج</p>', unsafe_allow_html=True)
                             
-                            # مفتاح فريد جداً لضمان عمل الإضافة
-                            u_key = f"g_{i}_{idx}_{j}_{p_name.replace(' ', '_')}"
+                            # حل مشكلة المفاتيح (Key) لضمان عمل زر الإضافة دائماً
+                            u_key = f"grid_{i}_{idx}_{j}_{p_name.replace(' ', '_')}"
                             
                             qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{u_key}", label_visibility="collapsed")
                             
@@ -131,12 +122,12 @@ if not prods_df.empty:
                                 st.toast(f"✅ تم إضافة {p_name}")
                             st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 4. السلة ---
+# --- 4. السلة (تظهر فقط عند وجود مشتريات) ---
 if st.session_state.cart:
     st.divider()
-    st.markdown("### 🧺 المشتريات")
+    st.markdown("### 🧺 طلبيتك")
     total = 0
-    items_list = []
+    items_summary = []
     
     for name, info in list(st.session_state.cart.items()):
         sub = info['price'] * info['qty']
@@ -146,17 +137,17 @@ if st.session_state.cart:
         if c2.button("🗑️", key=f"del_{name}"):
             del st.session_state.cart[name]
             st.rerun()
-        items_list.append(f"{name} ({info['qty']} كغ)")
+        items_summary.append(f"{name} ({info['qty']} كغ)")
     
     st.markdown(f"#### المجموع: {int(total)} دج")
     
-    with st.expander("🚚 تأكيد الطلب"):
-        un = st.text_input("الاسم")
-        ua = st.text_input("العنوان")
+    with st.expander("🚚 إتمام الطلب"):
+        u_name = st.text_input("الاسم الكامل")
+        u_addr = st.text_input("العنوان")
         if not drivers_df.empty:
-            dn = st.selectbox("الموصل", drivers_df.iloc[:, 0].tolist())
-            if st.button("إرسال عبر واتساب"):
-                if un and ua:
-                    ph = str(drivers_df[drivers_df.iloc[:, 0] == dn].iloc[0, 1])
-                    msg = f"طلب من: {un}\nالعنوان: {ua}\nالمشتريات: {' + '.join(items_list)}\nالمجموع: {int(total)} دج"
-                    st.markdown(f'<a href="https://wa.me/{ph}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد الإرسال</a>', unsafe_allow_html=True)
+            sel_d = st.selectbox("اختر الموصل", drivers_df.iloc[:, 0].tolist())
+            if st.button("إرسال عبر واتساب 🚀"):
+                if u_name and u_addr:
+                    phone = str(drivers_df[drivers_df.iloc[:, 0] == sel_d].iloc[0, 1])
+                    msg = f"طلب من: {u_name}\nالعنوان: {u_addr}\nالمنتجات: {' + '.join(items_summary)}\nالمجموع: {int(total)} دج"
+                    st.markdown(f'<a href="https://wa.me/{phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد الإرسال</a>', unsafe_allow_html=True)
