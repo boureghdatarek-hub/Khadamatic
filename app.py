@@ -1,189 +1,173 @@
 import streamlit as st
-import pandas as pd
+import json, os, base64
 import urllib.parse
-import uuid
+import pandas as pd
+from datetime import datetime
 
-# --- 1. إعدادات المتصفح وفرض المظهر الفاتح ---
+# --- 1. تنسيق الواجهة (إلغاء الفراغات والـ CSS) ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
 <style>
-    /* فرض الخلفية البيضاء ومنع الوضع الليلي */
-    .stApp { background-color: #FFFFFF !important; }
+    /* تقليل الفراغ العلوي */
+    .block-container { padding-top: 1rem !important; }
     
-    /* جعل كل النصوص سوداء وواضحة */
-    h1, h2, h3, p, span, label, .stMarkdown { color: #000000 !important; }
-
-    /* تنظيف خانات الإدخال من السواد */
-    input, select, textarea, div[data-baseweb="input"] {
-        background-color: #F8F9FA !important;
-        color: #000000 !important;
-        border: 1px solid #DDDDDD !important;
-        -webkit-text-fill-color: #000000 !important;
+    /* أزرار التصنيفات */
+    .stButton > button { border-radius: 10px; font-weight: bold; }
+    
+    /* كارت المنتج والـ Grid */
+    .product-box { 
+        border: 1px solid #ddd; padding: 10px; border-radius: 15px; 
+        text-align: center; background: white; margin-bottom: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        min-height: 380px; display: flex; flex-direction: column; justify-content: space-between;
     }
-
-    /* تنسيق بطاقة المنتج لتكون نظيفة */
-    .product-box {
-        background: #FFFFFF;
-        padding: 10px;
-        border-radius: 12px;
-        border: 1px solid #EEEEEE;
-        text-align: center;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        height: 100%; /* لتوحيد الارتفاع */
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+    .product-img { width: 100%; height: 140px; object-fit: contain; border-radius: 8px; }
+    
+    /* زر الإضافة للسلة (ملون ومميز) */
+    .stButton > button[kind="primary"] { 
+        background-color: #e67e22 !important; border: none !important; color: white !important; 
     }
     
-    /* --- توحيد حجم الصور --- */
-    .product-box img {
-        width: 100%;
-        height: 120px; /* الارتفاع الموحد للصور */
-        object-fit: contain; /* الحفاظ على أبعاد الصورة داخل الإطار */
-        margin-bottom: 5px;
-    }
-
-    /* زر الواتساب الأخضر */
-    .wa-button {
-        background-color: #25D366;
-        color: white !important;
-        padding: 12px;
-        text-align: center;
-        display: block;
-        border-radius: 8px;
-        text-decoration: none;
-        font-weight: bold;
-    }
-    
-    /* إخفاء القوائم غير الضرورية */
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
+    .price-text { color: #27ae60; font-weight: bold; font-size: 1.2rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. دالة جلب البيانات مع معالجة الأخطاء ---
-SHEET_ID = "15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk"
+# --- 2. قاعدة البيانات ---
+DB_FILE = "sm_khadamat_db.json"
 
-@st.cache_data(ttl=20) # تحديث البيانات كل 20 ثانية
-def get_sheet_data(name):
-    # استخدام رابط gviz للحصول على البيانات بشكل أدق
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={name}"
-    try:
-        return pd.read_csv(url).dropna(how='all')
-    except:
-        return pd.DataFrame()
-
-# تحميل البيانات الأساسية
-prods = get_sheet_data("products")
-drivers = get_sheet_data("drivers")
-
-if 'cart' not in st.session_state: st.session_state.cart = {}
-
-# --- 3. واجهة التطبيق الرئيسية (الزبون) ---
-st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
-
-# البحث
-search_query = st.text_input("", placeholder="🔍 ابحث هنا...", label_visibility="collapsed")
-
-if not prods.empty:
-    # تحديد أسماء التبويبات بناءً على الأقسام
-    categories = ["الكل"] + prods['cat'].unique().tolist()
+def load_db():
     
-    # إضافة تبويب الإدارة في النهاية
-    all_tabs = categories + ["📋 الإدارة"]
-    tabs = st.tabs(all_tabs)
     
-    # --- حلقات عرض المنتجات في التبويبات (للزبون) ---
-    for i, tab in enumerate(tabs[:-1]): # نتوقف قبل تبويب الإدارة
-        with tab:
-            current_c = categories[i]
-            # تصفية البيانات حسب القسم والبحث
-            df_view = prods if current_c == "الكل" else prods[prods['cat'] == current_c]
-            if search_query:
-                df_view = df_view[df_view['name'].str.contains(search_query, case=False, na=False)]
+    
+    
+    defaults = {"products": [], "drivers": [], "orders": [], "categories": ["خضر", "فواكه", "عروض"]}
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                for k in defaults:
+                    if k not in d: d[k] = defaults[k]
+                return d
+        except: return defaults
+    return defaults
+
+def save_db(data):
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+if 'db' not in st.session_state: st.session_state.db = load_db()
+if 'cart' not in st.session_state: st.session_state.cart = []
+
+# --- 3. لوحة التحكم ---
+is_admin = st.sidebar.checkbox("🔒 لوحة الإدارة")
+if is_admin:
+    if st.sidebar.text_input("كلمة السر", type="password") == "tarek2026":
+        st.title("⚙️ إدارة SM KHADAMATIC")
+        t1, t2, t3 = st.tabs(["📦 المنتجات", "🚚 الموصلين", "📊 سجل الطلبات"])
+        
+        with t1:
+            with st.form("add_p_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                n = col1.text_input("اسم المنتج")
+                p = col2.number_input("السعر", min_value=1)
+                c = st.selectbox("التصنيف", st.session_state.db["categories"])
+                img = st.file_uploader("الصورة")
+                if st.form_submit_button("إضافة المنتج ✅"):
+                    img_b64 = base64.b64encode(img.read()).decode() if img else ""
+                    st.session_state.db["products"].append({"name": n, "price": p, "cat": c, "img": img_b64})
+                    save_db(st.session_state.db); st.rerun()
             
-            # عرض المنتجات (2 في كل سطر للهاتف)
-            for idx in range(0, len(df_view), 2):
-                cols = st.columns(2)
-                for j, (_, row) in enumerate(df_view.iloc[idx:idx+2].iterrows()):
-                    with cols[j]:
-                        st.markdown('<div class="product-box">', unsafe_allow_html=True)
-                        if not pd.isna(row.get('img')):
-                            # الصورة الموحدة الحجم عبر CSS
-                            st.image(row['img'])
-                        else:
-                            st.markdown("<h2 style='margin:0; text-align:center;'>📦</h2>", unsafe_allow_html=True)
-                        
-                        st.markdown(f"<b>{row['name']}</b>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='color:green; font-weight:bold; margin:0;'>{row['price']} دج</p>", unsafe_allow_html=True)
-                        
-                        # مفتاح فريد لمنع خطأ Duplicate Key
-                        unique_id = f"{i}_{idx}_{j}_{row['name']}"
-                        
-                        q = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{unique_id}", label_visibility="collapsed")
-                        
-                        if st.button("🛒 أضف", key=f"btn_{unique_id}"):
-                            p_name = row['name']
-                            if p_name in st.session_state.cart:
-                                st.session_state.cart[p_name]['qty'] += q
-                            else:
-                                st.session_state.cart[p_name] = {'price': row['price'], 'qty': q}
-                            st.toast(f"✅ تم إضافة {p_name}")
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+            for i, pr in enumerate(st.session_state.db["products"]):
+                c1, c2, c3 = st.columns([1, 4, 1])
+                c2.write(f"**{pr['name']}** - {pr['price']} DA ({pr.get('cat', '')})")
+                if c3.button("🗑️", key=f"del_{i}"):
+                    st.session_state.db["products"].pop(i); save_db(st.session_state.db); st.rerun()
 
-    # --- 4. تبويب الإدارة (Orders) ---
-    with tabs[-1]: # التبويب الأخير
-        st.write("### 📜 سجل الطلبات المستلمة")
-        
-        # تحميل بيانات الطلبات (منع الكاش هنا لتحديث فوري)
-        orders_df = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=orders").dropna(how='all')
-        
-        if not orders_df.empty:
-            # عرض الطلبات في جدول منظم، مع تلوين الأسطر
-            st.dataframe(orders_df, use_container_width=True)
-            if st.button("♻️ تحديث القائمة"):
-                st.rerun()
-        else:
-            st.info("لم يتم العثور على طلبات في شيت orders. تأكد من وجود عناوين الأعمدة في جوجل شيت.")
+        with t2:
+            with st.form("d_form"):
+                dn = st.text_input("اسم الموصل"); dp = st.text_input("رقم الواتساب (213...)")
+                if st.form_submit_button("إضافة موصل"):
+                    st.session_state.db["drivers"].append({"name": dn, "phone": dp, "status": "متاح"})
+                    save_db(st.session_state.db); st.rerun()
 
-# --- 5. سلة التسوق (بدون تغيير في المنطق) ---
+        with t3:
+            if st.session_state.db["orders"]:
+                # عرض السجل كما كان سابقاً
+                df = pd.DataFrame(st.session_state.db["orders"])
+                st.table(df[::-1]) # عرض الجدول بشكل كلاسيكي مرتب
+                if st.button("🗑️ حذف السجلات"):
+                    st.session_state.db["orders"] = []; save_db(st.session_state.db); st.rerun()
+
+# --- 4. المتجر (الزبائن) ---
+else:
+    st.markdown("<h2 style='text-align:center;'>🛒 SM KHADAMATIC</h2>", unsafe_allow_html=True)
+    
+    # تصنيفات (بدون فراغ كبير)
+    cats = ["الكل"] + st.session_state.db["categories"]
+    selected_cat = st.segmented_control("التصنيف:", cats, default="الكل")
+
+    prods = st.session_state.db["products"]
+    if selected_cat != "الكل":
+        prods = [p for p in prods if p.get("cat") == selected_cat]
+
+    # Grid المنتجات
+    for i in range(0, len(prods), 3):
+        cols = st.columns(3)
+        for j, p in enumerate(prods[i:i+3]):
+            with cols[j]:
+                st.markdown('<div class="product-box">', unsafe_allow_html=True)
+                if p.get("img"):
+                    st.markdown(f'<img src="data:image/png;base64,{p["img"]}" class="product-img">', unsafe_allow_html=True)
+                st.markdown(f"**{p['name']}**")
+                st.markdown(f'<p class="price-text">{p["price"]} DA</p>', unsafe_allow_html=True)
+                qty = st.number_input("الكمية (كغ)", 0.5, 50.0, 1.0, 0.5, key=f"q_{i+j}")
+                if st.button(f"إضافة 🛒", key=f"btn_{i+j}", type="primary"):
+                    st.session_state.cart.append({"name": p['name'], "price": p['price']*qty, "qty": qty})
+                    st.toast(f"✅ تم الإضافة")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+# --- 5. السلة وتأكيد الطلب (حل مشكلة الواتساب) ---
 if st.session_state.cart:
-    st.markdown("---")
-    st.markdown("### 🧺 سلة التسوق الخاصة بك")
-    total_bill = 0
-    items_summary = []
-    
-    for item_name, details in list(st.session_state.cart.items()):
-        line_total = details['price'] * details['qty']
-        total_bill += line_total
-        c1, c2 = st.columns([5, 1])
-        c1.write(f"• {item_name} ({details['qty']} كغ) = {int(line_total)} دج")
-        if c2.button("🗑️", key=f"del_{item_name}"):
-            del st.session_state.cart[item_name]; st.rerun()
-        items_summary.append(f"{item_name} ({details['qty']} كغ)")
-    
-    st.markdown(f"#### المجموع الإجمالي: {int(total_bill)} دج")
-    
-    # نموذج إرسال الطلب (واتساب فقط)
-    with st.expander("📝 إكمال معلومات التوصيل"):
-        name_input = st.text_input("الاسم واللقب")
-        addr_input = st.text_input("العنوان")
+    with st.sidebar:
+        st.header("🛒 طلبياتك")
+        # تجميع الطلبات المتشابهة
+        summary = {}
+        total = 0
+        for item in st.session_state.cart:
+            name = item['name']
+            summary[name] = summary.get(name, 0) + item['qty']
+            total += item['price']
         
-        driver_names = drivers['name'].tolist() if not drivers.empty else ["موصل 1"]
-        selected_driver = st.selectbox("اختيار الموصل", driver_names)
+        for n, q in summary.items():
+            st.write(f"• {n}: {q} كغ")
         
-        if st.button("✅ تأكيد وإرسال عبر واتساب"):
-            if name_input and addr_input:
-                try:
-                    target_phone = drivers[drivers_df['name'] == selected_driver]['phone'].iloc[0]
-                except:
-                    target_phone = "213" # ضع رقمك كاحتياطي
-                
-                whatsapp_msg = f"طلب من: {name_input}\n📍 العنوان: {addr_input}\n🥦 المشتريات: {' + '.join(items_summary)}\n💰 المجموع: {int(total_bill)} دج"
-                encoded_msg = urllib.parse.quote(whatsapp_msg)
-                st.markdown(f'<a href="https://wa.me/{target_phone}?text={encoded_msg}" class="wa-button" target="_blank">اضغط هنا لإرسال الطلب للواتساب</a>', unsafe_allow_html=True)
-            else:
-                st.error("يرجى إدخال الاسم والعنوان لإتمام الطلب")
+        st.markdown(f"### المجموع: {int(total)} DA")
+        
+        with st.form("checkout_form"):
+            un = st.text_input("الاسم")
+            up = st.text_input("الهاتف")
+            ua = st.text_area("العنوان")
+            drivers = [d for d in st.session_state.db["drivers"] if d.get("status") == "متاح"]
+            target_d = st.selectbox("اختر الموصل", [d['name'] for d in drivers]) if drivers else None
+            
+            if st.form_submit_button("إرسال الطلب ✅"):
+                if un and up and target_d:
+                    driver = next(d for d in drivers if d['name'] == target_d)
+                    items_list = " | ".join([f"{n} ({q}كغ)" for n, q in summary.items()])
+                    
+                    # حفظ في السجل
+                    st.session_state.db["orders"].append({
+                        "الزبون": un, "الهاتف": up, "الطلبات": items_list, 
+                        "المجموع": int(total), "التاريخ": datetime.now().strftime("%Y-%m-%d")
+                    })
+                    save_db(st.session_state.db)
+                    
+                    # بناء رسالة الواتساب بدقة
+                    msg = f"طلب جديد من: {un}\nالهاتف: {up}\nالعنوان: {ua}\nالطلبات: {items_list}\nالمجموع: {int(total)} DA"
+                    encoded_msg = urllib.parse.quote(msg)
+                    url = f"https://wa.me/{driver['phone']}?text={encoded_msg}"
+                    
+                    st.markdown(f'<a href="{url}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">إرسال عبر واتساب 🚚</a>', unsafe_allow_html=True)
+                    st.session_state.cart = []
+                else: st.error("يرجى ملء البيانات!")
