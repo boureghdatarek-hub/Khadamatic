@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 
-# --- 1. الإعدادات البصرية (أبيض ناصع ومنع السواد) ---
+# --- 1. الإعدادات البصرية وإجبار نظام الـ Grid على الهاتف ---
 st.set_page_config(page_title="SM KHADAMATIC", layout="wide")
 
 st.markdown("""
@@ -10,33 +10,42 @@ st.markdown("""
     .stApp { background-color: white !important; }
     h1, h2, h3, p, b, span, label { color: black !important; }
     
-    /* تنسيق كرت المنتج Grid */
+    /* الكود المسؤول عن إجبار الأعمدة على الظهور بجانب بعضها في الهاتف */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 10px !important;
+    }
+    [data-testid="column"] {
+        width: 50% !important;
+        flex: 1 1 50% !important;
+        min-width: 45% !important;
+    }
+
     .product-card {
         background: white;
-        padding: 10px;
+        padding: 8px;
         border-radius: 12px;
-        border: 1px solid #eee;
+        border: 1px solid #f0f0f0;
         text-align: center;
         margin-bottom: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    
-    /* الأزرار (أبيض + أخضر) */
+
+    /* تنسيق الأزرار (بدون تغيير) */
     button, [data-testid="stBaseButton-secondary"] {
         background-color: white !important;
         color: #006341 !important;
         border: 2px solid #006341 !important;
         border-radius: 20px !important;
         width: 100% !important;
-        font-weight: bold !important;
+        height: 35px !important;
+        padding: 0px !important;
     }
     
-    /* إصلاح خانات الإدخال للهاتف */
-    input, [data-baseweb="input"] {
-        background-color: #f0f2f6 !important;
-        color: black !important;
-        -webkit-text-fill-color: black !important;
-    }
+    /* تصغير حجم خانة الكمية لتناسب الشبكة */
+    .stNumberInput div { height: 35px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,8 +56,7 @@ SHEET_ID = "15R1XMLD-8FGG-WIsXM1PZ0JLTceGIJyjNIHgb_uNOZk"
 def load_data(sheet_name):
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
     try:
-        df = pd.read_csv(url)
-        return df.dropna(how='all')
+        return pd.read_csv(url).dropna(how='all')
     except:
         return pd.DataFrame()
 
@@ -57,12 +65,13 @@ drivers_df = load_data("drivers")
 
 if 'cart' not in st.session_state: st.session_state.cart = {}
 
-# --- 3. الواجهة الرئيسية ---
 st.markdown("<h1 style='text-align:center; color:#006341;'>🛒 SM KHADAMATIC</h1>", unsafe_allow_html=True)
 
+# --- 3. عرض المنتجات بنظام Grid (2 في السطر) ---
 if not prods_df.empty:
     search = st.text_input("", placeholder="🔍 ابحث هنا...", label_visibility="collapsed")
     
+    # تحديد الأقسام
     cat_col = 'cat' if 'cat' in prods_df.columns else prods_df.columns[2]
     cats = ["الكل"] + prods_df[cat_col].unique().tolist()
     tabs = st.tabs(cats)
@@ -74,7 +83,7 @@ if not prods_df.empty:
             if search:
                 df = df[df[df.columns[0]].astype(str).str.contains(search, case=False, na=False)]
             
-            # عرض الشبكة (Grid)
+            # منطق عرض الشبكة
             for idx in range(0, len(df), 2):
                 cols = st.columns(2)
                 for j in range(2):
@@ -86,35 +95,30 @@ if not prods_df.empty:
                         with cols[j]:
                             st.markdown('<div class="product-card">', unsafe_allow_html=True)
                             
-                            # الصورة
+                            # عرض الصورة
                             img_val = row.get('img') if 'img' in df.columns else None
                             if pd.notna(img_val) and str(img_val).startswith("http"):
                                 st.image(img_val, use_container_width=True)
                             else:
-                                st.markdown("<h2 style='margin:0;'>📦</h2>", unsafe_allow_html=True)
+                                st.markdown("<h2>📦</h2>", unsafe_allow_html=True)
                             
-                            st.markdown(f"<b>{p_name}</b>", unsafe_allow_html=True)
-                            st.markdown(f"<p style='color:green;'>{p_price} دج</p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='margin:0; font-size:14px;'><b>{p_name}</b></p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='color:green; margin:0;'>{p_price} دج</p>", unsafe_allow_html=True)
                             
-                            # --- حل مشكلة Duplicate Key الصارم ---
-                            # المفتاح يجمع (اسم التبويب + مكان الصف + مكان العمود + اسم المنتج)
-                            unique_id = f"{i}_{idx}_{j}_{p_name}"
+                            # مفتاح فريد لمنع خطأ Duplicate Key
+                            unique_id = f"grid_{i}_{idx}_{j}"
                             
                             qty = st.number_input("الكمية", 0.5, 50.0, 1.0, 0.5, key=f"q_{unique_id}", label_visibility="collapsed")
                             
-                            if st.button("أضف 🛒", key=f"btn_{unique_id}"):
-                                if p_name in st.session_state.cart:
-                                    st.session_state.cart[p_name]['qty'] += qty
-                                else:
-                                    st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
+                            if st.button("أضف 🛒", key=f"b_{unique_id}"):
+                                st.session_state.cart[p_name] = {'price': p_price, 'qty': qty}
                                 st.toast(f"✅ تم إضافة {p_name}")
-                                # نزيل st.rerun() هنا لتجنب وميض الصفحة المزعج في الهاتف
                             st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 4. السلة والموصلين (بدون تغيير) ---
+# --- 4. السلة وإتمام الطلب (بدون تغيير) ---
 if st.session_state.cart:
     st.divider()
-    st.markdown("### 🧺 طلبيتك")
+    st.markdown("### 🧺 السلة")
     total = 0
     items_summary = []
     
@@ -124,21 +128,18 @@ if st.session_state.cart:
         c1, c2 = st.columns([4, 1])
         c1.write(f"• {name} ({info['qty']} كغ) = {int(sub)} دج")
         if c2.button("🗑️", key=f"del_{name}"):
-            del st.session_state.cart[name]
-            st.rerun()
+            del st.session_state.cart[name]; st.rerun()
         items_summary.append(f"{name} ({info['qty']} كغ)")
     
     st.markdown(f"#### المجموع: {int(total)} دج")
     
-    with st.expander("🚚 إتمام الطلب", expanded=True):
-        u_name = st.text_input("الاسم الكامل")
+    with st.expander("🚚 إتمام الطلب"):
+        u_name = st.text_input("الاسم")
         u_addr = st.text_input("العنوان")
         if not drivers_df.empty:
-            d_names = drivers_df.iloc[:, 0].tolist()
-            sel_d = st.selectbox("اختر الموصل", d_names)
-            if st.button("إرسال عبر واتساب 🚀"):
+            sel_d = st.selectbox("الموصل", drivers_df.iloc[:, 0].tolist())
+            if st.button("إرسال الطلب 🚀"):
                 if u_name and u_addr:
-                    row_d = drivers_df[drivers_df.iloc[:, 0] == sel_d]
-                    phone = str(row_d.iloc[0, 1])
+                    phone = str(drivers_df[drivers_df.iloc[:, 0] == sel_d].iloc[0, 1])
                     msg = f"طلب من: {u_name}\nالعنوان: {u_addr}\nالمنتجات: {' + '.join(items_summary)}\nالمجموع: {int(total)} دج"
-                    st.markdown(f'<a href="https://wa.me/{phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد الإرسال</a>', unsafe_allow_html=True)
+                    st.markdown(f'<a href="https://wa.me/{phone}?text={urllib.parse.quote(msg)}" target="_blank" style="background:#25D366;color:white;display:block;text-align:center;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;">تأكيد عبر واتساب</a>', unsafe_allow_html=True)
